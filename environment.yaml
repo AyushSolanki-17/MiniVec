@@ -1,0 +1,16 @@
+name: minivec
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - cmake
+  - numpy
+  - pybind11
+  - pip:
+      - fastapi
+      - uvicorn
+      - matplotlib
+      - seaborn
+      - pytest

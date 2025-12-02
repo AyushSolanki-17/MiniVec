@@ -1,0 +1,97 @@
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.dll
+*.log
+
+# Virtual environments
+env/
+venv/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python packaging/temp
+build/
+dist/
+*.egg
+*.whl
+*.spec
+
+# -----------------------------
+# C++ / CMake
+# -----------------------------
+# CMake build directories
+/build/
+/build/*
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# C++ object files & binaries
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.lib
+*.exp
+*.pdb
+
+# Shared libraries for Python-C++ bindings
+*.so
+*.dylib
+*.pyd
+
+# -----------------------------
+# OS Specific
+# -----------------------------
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Linux
+*.swp
+*.temp
+
+# -----------------------------
+# IDE / Editor Files
+# -----------------------------
+.vscode/
+.idea/
+*.code-workspace
+
+# -----------------------------
+# Minivec-specific data outputs
+# -----------------------------
+# Persisted graph data
+*.npy
+*.npz
+*.pkl
+*.json
+
+# Benchmark outputs
+benchmarks/results/
+benchmarks/plots/
+
+# Temporary vector files
+vectors/
+data/
+tmp/
+
+.mypy_cache/

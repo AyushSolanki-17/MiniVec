@@ -1,0 +1,27 @@
+# Auto-normalization for line endings
+* text=auto eol=lf
+
+# Binary files (never modify EOL)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.pdf binary
+*.npy binary
+*.npz binary
+*.pkl binary
+*.so binary
+*.dll binary
+*.dylib binary
+*.pyd binary
+*.exe binary
+*.lib binary
+*.obj binary
+*.o binary
+*.out binary
+
+# C++ source files - keep LF always
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
