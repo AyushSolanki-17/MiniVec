@@ -1,4 +1,3 @@
-# run from repo root in Powershell
 mkdir build -ErrorAction Ignore
 cd build
 cmake .. 

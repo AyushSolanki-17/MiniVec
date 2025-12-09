@@ -1,7 +1,10 @@
 # stubs/minivec_cpp.pyi
 from typing import Any, List
+import numpy as np
+# np.array of float values
 
-def l2_distance(a: Any, b: Any) -> float: ...
+def l2(a: np.ndarray, b: np.ndarray) -> np.float32: ...
+def l2_squared(a: np.ndarray, b: np.ndarray) -> np.float32: ...
 
 class HNSWIndex:
     entry_point: int
