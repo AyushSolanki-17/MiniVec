@@ -47,6 +47,6 @@ PYBIND11_MODULE(minivec_cpp, m)
                 std::memcpy(arr.mutable_data(), ptr, dim * sizeof(float));
                 return arr; })
         .def("node_count", &HNSWIndexSimple::get_node_count)
-        .def("max_level", &HNSWIndexSimple::get_max_level)
+        .def("max_level", &HNSWIndexSimple::get_max_layer)
         .def("entry_point", &HNSWIndexSimple::get_entry_point);
 }

@@ -10,6 +10,7 @@
 #include <cmath>
 #include <random>
 #include <thread>
+#include "hnsw_node.hpp"
 
 // Generates random levels for HNSW nodes using a geometric-like distribution.
 class HNSWLevelGenerator {
@@ -65,3 +66,22 @@ struct CandidateCompareInverse {
     return a.distance < b.distance;
   }
 };
+
+// Centralized check helper — throws std::out_of_range for invalid node ids.
+inline void throw_if_invalid_node_id(const std::vector<std::unique_ptr<HNSWNodeSimple>>& nodes, int id, const char* context) {
+    if (id < 0 || id >= static_cast<int>(nodes.size())) {
+        std::ostringstream oss;
+        oss << context << ": invalid node id " << id << " (nodes.size()=" << nodes.size() << ")";
+        throw std::out_of_range(oss.str());
+    }
+    if (!nodes[id]) {
+        std::ostringstream oss;
+        oss << context << ": nodes[" << id << "] is nullptr (possible allocation error or moved-out node)";
+        throw std::runtime_error(oss.str());
+    }
+}
+
+// // | " << __FILE__ << ":" << __LINE__ << "
+// #define LOG(message)                              \
+//     std::cout << "[INFO]--[" << __func__ << " ] " \
+//               << message << std::endl << std::flush;

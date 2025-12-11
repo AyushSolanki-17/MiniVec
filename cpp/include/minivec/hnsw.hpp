@@ -1,18 +1,18 @@
 /**
  * @file hnsw.hpp
  * @brief Declaration of HNSW index representation
- * 
+ *
  * @details
  * This file defines the HNSWIndexSimple class, which represents a
  * HNSW (Hierarchical Navigable Small World) index for float vectors.
  * This header defines a minimal, in-memory HNSW (Hierarchical Navigable Small
  * World) index implementation used by the minivec project. The index stores
  * vectors in a VecStore and maintains a graph of HNSWNodeSimple nodes across
- * multiple levels.
+ * multiple layers.
  * The primary responsibilities of HNSWIndexSimple are:
- *    - Managing vector storage and node metadata (levels, neighbors).
+ *    - Managing vector storage and node metadata (layers, neighbors).
  *    - Building the HNSW graph incrementally as new vectors are inserted.
- *    - Providing approximate nearest neighbor search via ef-search and 
+ *    - Providing approximate nearest neighbor search via ef-search and
  *      greedy search on different layers.
  *    - Part of the MiniVec project.
  */
@@ -24,20 +24,24 @@
 #include "utils.hpp"
 
 #include <vector>
+#include <shared_mutex>
+
+#include <iostream>
 
 // HNSWIndexSimple implements a basic HNSW index for float vectors.
 //
 // The index stores vectors in a VecStore and links them via an HNSW graph
 // (HNSWNodeSimple). Each node can exist at multiple layers, forming a
 // hierarchical small-world graph.
-class HNSWIndexSimple {
+class HNSWIndexSimple
+{
 private:
     // Maximum number of bi-directional connections (neighbors) per node
     // on each layer.
     int M;
 
     // Current maximum layer index in the graph (0-based).
-    int max_level;
+    int max_layer;
 
     // ID of the current entry point node in the top layer of the graph.
     int entry_point;
@@ -54,13 +58,17 @@ private:
     // Underlying storage for all vectors, indexed by node ID.
     VecStore store;
 
-    // Level generator used to assign a random level to each new node.
-    HNSWLevelGenerator level_gen;
+    // layer generator used to assign a random layer to each new node.
+    HNSWLevelGenerator layer_gen;
+
+    // Mutex for thread safety.
+    mutable std::shared_mutex index_mtx;
 
     // All HNSW nodes (graph vertices) stored in a contiguous vector.
     // The index into this vector is the node ID and corresponds to the
     // same index in the VecStore.
-    std::vector<HNSWNodeSimple> nodes;
+    std::vector<std::unique_ptr<HNSWNodeSimple>> nodes;
+    
 
 public:
     // Constructs an HNSWIndexSimple with the given dimensionality and parameters.
@@ -73,16 +81,16 @@ public:
     //   efSearch_: Default search breadth used during queries (default 200).
     HNSWIndexSimple(int dim_, int M_ = 16, int efConstruction_ = 200, int efSearch_ = 200);
 
-    // Adds a node with an externally provided level.
+    // Adds a node with an externally provided layer.
     //
     // Args:
     //   vec_vals: Pointer to a float array of length `dim` representing
     //       the vector to insert. The memory is copied into the VecStore.
-    //   level: Level at which this node is created (0-based).
+    //   layer: layer at which this node is created (0-based).
     //
     // Returns:
     //   Integer ID of the newly added node (index into `nodes` and `store`).
-    int add_node(const float* vec_vals, int level);
+    int add_node(const float *vec_vals, int layer);
 
     // Returns a const pointer to the stored vector for the given node ID.
     //
@@ -92,18 +100,18 @@ public:
     // Returns:
     //   Pointer to a float array of length `dim` representing the stored
     //   vector, or nullptr if `id` is invalid.
-    const float* get_vector_ptr(int id) const;
+    const float *get_vector_ptr(int id) const;
 
-    // Returns the level (maximum layer index) for a given node ID.
+    // Returns the layer (maximum layer index) for a given node ID.
     //
     // Args:
-    //   id: Node ID whose level is requested.
+    //   id: Node ID whose layer is requested.
     //
     // Returns:
     //   The maximum layer index (0-based) on which this node exists.
-    const int get_level(int id) const;
+    int get_layer(int id) const;
 
-    // Returns the current entry point node ID used for top-level search.
+    // Returns the current entry point node ID used for top-layer search.
     //
     // Returns:
     //   Node ID of the entry point, or -1 if the index is empty.
@@ -114,39 +122,39 @@ public:
     // Returns:
     //   Integer representing the highest layer index (0-based) that has
     //   at least one node.
-    const int get_max_level() const;
+    int get_max_layer() const;
 
     // Returns the total number of nodes currently stored in the index.
     //
     // Returns:
     //   Integer count of nodes.
-    const int get_node_count() const;
+    int get_node_count() const;
 
     // Returns the dimensionality of all vectors in the index.
     //
     // Returns:
     //   Integer dimension of stored vectors.
-    const int get_vector_dim() const;
+    int get_vector_dim() const;
 
     // Returns the maximum number of neighbors (M) per node per layer.
     //
     // Returns:
     //   Integer M value used by this index.
-    const int get_M() const;
+    int get_M() const;
 
     // Returns the construction-time search breadth (efConstruction).
     //
     // Returns:
     //   Integer efConstruction value used for insertions.
-    const int get_efConstruction() const;
+    int get_efConstruction() const;
 
     // Returns the default search-time breadth (efSearch).
     //
     // Returns:
     //   Integer efSearch value used for queries.
-    const int get_efSearch() const;
+    int get_efSearch() const;
 
-    // Inserts a new vector into the index using an automatically generated level.
+    // Inserts a new vector into the index using an automatically generated layer.
     //
     // Args:
     //   vec_vals: Pointer to a float array of length `dim` representing
@@ -154,14 +162,14 @@ public:
     //
     // Returns:
     //   Integer ID of the inserted node.
-    int insert_vector(const float* vec_vals);
+    int insert_vector(const float *vec_vals);
 
-    // Prunes neighbors of a node at a given level to enforce the HNSW degree constraint.
+    // Prunes neighbors of a node at a given layer to enforce the HNSW degree constraint.
     //
     // Args:
     //   id: Node ID whose neighbors are to be pruned.
-    //   level: Layer index where pruning should be applied.
-    void prune_neighbours(int id, int level);
+    //   layer: Layer index where pruning should be applied.
+    void prune_neighbours(int id, int layer);
 
     // Performs ef-search on a specific layer starting from an entry node.
     //
@@ -176,7 +184,7 @@ public:
     //   A priority queue (max-heap) of Candidate objects ordered by
     //   CandidateCompareInverse.
     std::priority_queue<Candidate, std::vector<Candidate>, CandidateCompareInverse>
-    ef_search_layer(const float* query, int entry_id, int layer, int ef);
+    ef_search_layer(const float *query, int entry_id, int layer, int ef);
 
     // Performs greedy search on a specific layer starting from an entry node.
     //
@@ -188,7 +196,7 @@ public:
     //
     // Returns:
     //   Node ID of the closest node found on this layer using greedy descent.
-    int greedy_search_layer(const float* query, int entry_id, int layer);
+    int greedy_search_layer(const float *query, int entry_id, int layer);
 
     // Performs a top-k approximate nearest neighbor search.
     //
@@ -201,7 +209,7 @@ public:
     // Returns:
     //   A vector of Candidate objects representing the top-k approximate
     //   nearest neighbors, typically sorted by increasing distance.
-    std::vector<Candidate> search_top_k(const float* query, int ef, int k);
+    std::vector<Candidate> search_top_k(const float *query, int ef, int k);
 
     // Filters the candidate set to produce the final top-k results.
     //
@@ -215,10 +223,25 @@ public:
     // Returns:
     //   A vector of Candidate objects representing the top-k results.
     std::vector<Candidate> filter_top_k(
-        const float* query,
-        std::priority_queue<Candidate, std::vector<Candidate>, CandidateCompareInverse>& candidates,
+        const float *query,
+        std::priority_queue<Candidate, std::vector<Candidate>, CandidateCompareInverse> &candidates,
         int k);
 
     // Clears all data from the index while keeping configuration parameters.
     void clear();
+
+    // Thread-safe helpers used by tests and internal utils.
+    // Return a thread-safe copy of the neighbor list for node `node_id` at `layer`.
+    std::vector<int> get_neighbors_copy(int node_id, int layer) const;
+
+    // Link nodes `a` and `b` symmetrically at `layer` in a deadlock-safe way.
+    // This locks nodes in id-order, then performs two add_neighbor calls.
+    void link_nodes_symmetrically(int a, int b, int layer);
+
+    // Remove symmetric link between `a` and `b` at `layer` in a deadlock-safe way.
+    // This locks nodes in id-order, then performs two remove_neighbor calls.
+    void remove_link_symmetrically(int a, int b, int layer);
+
+    void dump_graph(std::ostream &out) const;
 };
+

@@ -12,9 +12,24 @@ add_library(minivec_core
 )
 target_include_directories(minivec_core PUBLIC include)
 
+# Ensure FetchContent is available
+include(FetchContent)
+
+# Fetch pybind11 so we don't depend on system install
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11.git
+  GIT_TAG v3.0.1   # choose a stable tag you want; update as needed
+)
+# set to true to use add_subdirectory-like behavior
+FetchContent_MakeAvailable(pybind11)
+
+# After FetchContent_MakeAvailable you can use pybind11 targets
+# (this avoids needing find_package(pybind11 REQUIRED))
+
 # Find Python and pybind11 in the active environment
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
-find_package(pybind11 REQUIRED)
+# find_package(pybind11 REQUIRED)
 
 # Source files (edit names if yours differ)
 set(minivec_cpp
@@ -61,14 +76,26 @@ FetchContent_MakeAvailable(googletest)
 # add_executable(test_hnsw tests/test_hnsw.cpp)
 # target_link_libraries(test_hnsw PRIVATE minivec_core gtest gtest_main pthread)
 # target_include_directories(test_hnsw PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-enable_testing()  # ensure testing is enabled
+enable_testing()
 
-add_executable(test_hnsw tests/test_hnsw.cpp)
-target_link_libraries(test_hnsw PRIVATE minivec_core gtest gtest_main pthread)
-target_include_directories(test_hnsw PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
 
-# Let CTest discover the gtest tests
-include(GoogleTest)
-gtest_discover_tests(test_hnsw)
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    add_executable(${test_name} ${test_src})
+    target_link_libraries(${test_name} PRIVATE minivec_core gtest gtest_main pthread)
+    target_include_directories(${test_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    set_target_properties(${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
+    )
+
+    # Discover gtest tests inside the binary and register with CTest
+    include(GoogleTest)
+    gtest_discover_tests(${test_name}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES LABELS "unit"
+    )
+endforeach()
+
 
 

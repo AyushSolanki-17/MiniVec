@@ -10,58 +10,73 @@
 #pragma once
 
 #include <vector>
+#include <shared_mutex>
+#include <optional>
+#include <limits>
 
 // Simple HNSW node representation used by the MiniVec HNSW engine.
 //
-// Each node has an integer id, a highest level index, and per-level neighbor
+// Each node has an integer id, a highest layer index, and per-layer neighbor
 // lists. This type is intentionally minimal and relies only on standard
 // containers.
-struct HNSWNodeSimple {
-   private:
+struct HNSWNodeSimple
+{
+private:
     // Unique identifier of the node within the index.
     int id;
 
-    // Highest level (0-based) on which this node exists.
+    // Highest layer (0-based) on which this node exists.
     // A value of 0 means the node exists only on the base layer.
-    int level;
+    int layer;
 
-    // Adjacency lists for each level; neighbors[l] holds neighbor IDs at level l.
+    // Adjacency lists for each layer; neighbors[l] holds neighbor IDs at layer l.
     std::vector<std::vector<int>> neighbors;
 
-   public:
-    // Constructs an HNSW node with a given id, number of levels, and capacity.
+    // Mutex for thread-safe access to the node.
+    mutable std::shared_mutex mtx;
+
+    void check_layer_bounds_or_throw(int layer) const;
+
+public:
+    // Constructs an HNSW node with a given id, number of layers, and capacity.
     //
-    // Levels are in the range [0, levels - 1]. For each level, an adjacency
+    // layers are in the range [0, layers - 1]. For each layer, an adjacency
     // list is created and may reserve up to M neighbors.
     //
     // Args:
     //   _id: Integer identifier of this node (default -1 for placeholder).
-    //   levels: Number of levels for this node (must be >= 1).
-    //   M: Expected maximum number of neighbors per level (for reserve).
-    HNSWNodeSimple(int _id = -1, int levels = 1, int M = 16);
+    //   layers: Number of layers for this node (must be >= 1).
+    //   M: Expected maximum number of neighbors per layer (for reserve).
+    HNSWNodeSimple(int _id = -1, int layers = 1, int M = 16);
+
+    // Disable copy to avoid accidental expensive shallow copies.
+    HNSWNodeSimple(const HNSWNodeSimple &) = delete;
+    HNSWNodeSimple &operator=(const HNSWNodeSimple &) = delete;
+    HNSWNodeSimple(HNSWNodeSimple &&) noexcept = delete;
+    HNSWNodeSimple &operator=(HNSWNodeSimple &&) noexcept = delete;
 
     // Returns the unique identifier of this node.
     //
     // Returns:
     //   Integer ID associated with this node.
-    const int getId() const;
+    const int get_id() const;
 
     // Returns the neighbor list for a specific layer.
     //
-    // Caller must ensure that layer is in range [0, getLevel()].
+    // Caller must ensure that layer is in range [0, getlayer()].
     //
     // Args:
-    //   layer: Zero-based index of the level.
+    //   layer: Zero-based index of the layer.
     //
     // Returns:
     //   Const reference to the vector of neighbor node IDs at the given layer.
-    const std::vector<int>& getNeighbors(int layer) const;
+    const std::vector<int> get_neighbors(int layer) const;
 
-    // Returns the highest level index of this node.
+    // Returns the highest layer index of this node.
     //
     // Returns:
-    //   Highest (0-based) level on which this node exists.
-    const int getLevel() const;
+    //   Highest (0-based) layer on which this node exists.
+    int get_layer() const;
 
     // Adds a neighbor to the specified layer.
     //
@@ -69,19 +84,55 @@ struct HNSWNodeSimple {
     //
     // Args:
     //   id: Identifier of the neighbor to add.
-    //   layer: Zero-based level index where the neighbor is added.
+    //   layer: Zero-based layer index where the neighbor is added.
+    //   out_index: If not null, will be set to the index at which the neighbor
+    //     was added.
     //
     // Returns:
     //   Implementation-defined status code.
-    int addNeighbor(int id, int layer);
+    bool add_neighbor(int id, int layer, int *out_index = nullptr);
 
     // Removes a neighbor from the specified layer, if present.
     //
     // Args:
     //   id: Identifier of the neighbor to remove.
-    //   layer: Zero-based level index from which the neighbor is removed.
+    //   layer: Zero-based layer index from which the neighbor is removed.
+    //   preserve_order: If true, the neighbor will be swapped with the last
+    //     neighbor and then removed.
     //
     // Returns:
     //   Implementation-defined status code.
-    int removeNeighbor(int id, int layer);
+    bool remove_neighbor(int id, int layer, bool preserve_order = false);
+
+    // Returns whether given neighbor exists in the layer.
+    //
+    // Args:
+    //   id: Identifier of the neighbor.
+    //   layer: Zero-based layer index of the neighbor.
+    //
+    // Returns:
+    //   True if the neighbor exists, false otherwise.
+    bool has_neighbor(int id, int layer) const;
+
+    // Reserves capacity for the given layer.
+    //
+    // Args:
+    //   layer: Zero-based layer index.
+    //   capacity: Desired capacity of the layer.
+    //
+    void reserve_layer(int layer, size_t capacity);
+
+    // Clears the neighbor list for the given layer.
+    //
+    // Args:
+    //   layer: Zero-based layer index.
+    void clear_layer(int layer);
+
+    // Expose node mutex so callers can lock two nodes without race / deadlock.
+    // Return by reference to avoid copying mutex object.
+    std::shared_mutex &getMutex() const { return mtx; }
+
+    // internal: caller must hold exclusive lock on mtx
+    bool add_neighbor_nolock(int id, int layer, int *out_index = nullptr);
+    bool remove_neighbor_nolock(int id, int layer);
 };

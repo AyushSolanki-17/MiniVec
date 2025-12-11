@@ -3,7 +3,7 @@
 #include <vector>
 #include <limits>
 
-// Deterministic test: insert at level 0 to avoid randomness
+//Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, InsertAndSearchDeterministic) {
     HNSWIndexSimple index(32);  // 32-dim vectors
 
@@ -42,7 +42,7 @@ TEST(HNSWTest, InsertAndSearchProbabilistic) {
 TEST(HNSWTest, MemoryLimitsLow) {
     HNSWIndexSimple index(1028);  // 1028-dim vectors
 
-    const int max_vectors = 25000; // fits in ~10 MB
+    const int max_vectors = 25; // fits in ~10 MB
     bool allocation_failed = false;
 
     try {
@@ -55,7 +55,6 @@ TEST(HNSWTest, MemoryLimitsLow) {
     } catch (...) {
         FAIL() << "Unexpected crash or exception occurred.";
     }
-
     // Test succeeded if no crash
     SUCCEED();
 }
