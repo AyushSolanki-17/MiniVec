@@ -1,4 +1,9 @@
-// cpp/src/bindings.cpp
+/**
+ * @file bindings.cpp
+ * @brief Python bindings for the HNSW index
+ * @details
+ * This file defines the Python bindings for the HNSW index.
+ */
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>

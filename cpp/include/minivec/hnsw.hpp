@@ -22,6 +22,7 @@
 #include "vecstore.hpp"
 #include "hnsw_node.hpp"
 #include "utils.hpp"
+#include "layer_generator.hpp"
 
 #include <vector>
 #include <shared_mutex>
@@ -59,7 +60,7 @@ private:
     VecStore store;
 
     // layer generator used to assign a random layer to each new node.
-    HNSWLevelGenerator layer_gen;
+    minivec::HNSWLevelGenerator layer_gen;
 
     // Mutex for thread safety.
     mutable std::shared_mutex index_mtx;
@@ -183,7 +184,7 @@ public:
     // Returns:
     //   A priority queue (max-heap) of Candidate objects ordered by
     //   CandidateCompareInverse.
-    std::priority_queue<Candidate, std::vector<Candidate>, CandidateCompareInverse>
+    std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
     ef_search_layer(const float *query, int entry_id, int layer, int ef);
 
     // Performs greedy search on a specific layer starting from an entry node.
@@ -224,7 +225,7 @@ public:
     //   A vector of Candidate objects representing the top-k results.
     std::vector<Candidate> filter_top_k(
         const float *query,
-        std::priority_queue<Candidate, std::vector<Candidate>, CandidateCompareInverse> &candidates,
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates,
         int k);
 
     // Clears all data from the index while keeping configuration parameters.
@@ -241,7 +242,5 @@ public:
     // Remove symmetric link between `a` and `b` at `layer` in a deadlock-safe way.
     // This locks nodes in id-order, then performs two remove_neighbor calls.
     void remove_link_symmetrically(int a, int b, int layer);
-
-    void dump_graph(std::ostream &out) const;
 };
 

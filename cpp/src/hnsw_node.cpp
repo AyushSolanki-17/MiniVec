@@ -1,5 +1,9 @@
-// Implements the HNSWNodeSimple methods declared in hnsw_node.hpp.
-
+/**
+ * @file hnsw_node.cpp
+ * @brief Implementation of HNSW node functionality
+ * @details
+ * This file implements the HNSWNodeSimple class, which represents a node in the HNSW graph.
+ */
 #include "minivec/hnsw_node.hpp"
 #include <iostream>
 #include <thread>

@@ -22,6 +22,7 @@ venv/
 # Python packaging/temp
 build/
 build-debug/
+build-sanitize/
 dist/
 *.egg
 *.whl
