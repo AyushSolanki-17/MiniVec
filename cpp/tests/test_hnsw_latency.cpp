@@ -20,7 +20,7 @@ TEST(HNSWLatency, QueryLatency) {
     std::vector<std::vector<float>> db(N, std::vector<float>(dim));
     for (int i=0;i<N;++i) for (int j=0;j<dim;++j) db[i][j]=d(rng);
 
-    HNSWIndexSimple index(dim);
+    minivec::HNSWIndexSimple index(dim);
     for (int i=0;i<N;++i) index.insert_vector(db[i].data());
 
     std::vector<std::vector<float>> queries(Q, std::vector<float>(dim));

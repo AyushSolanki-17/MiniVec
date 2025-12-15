@@ -7,7 +7,8 @@
 #include "minivec/hnsw_node.hpp"
 #include <iostream>
 #include <thread>
-
+namespace minivec
+{
 // Initializes a node with the given id, number of layers, and neighbor capacity.
 //
 // Args:
@@ -189,4 +190,5 @@ void HNSWNodeSimple::clear_layer(int layer) {
   check_layer_bounds_or_throw(layer);
   std::unique_lock lock(mtx);
   neighbors[layer].clear();
+}
 }

@@ -10,6 +10,7 @@
 #include <cassert>
 #include <vector>
 
+namespace minivec {
 // Stores fixed-dimensional vectors in a contiguous array.
 //
 // Vectors are appended sequentially and addressed by an integer id in
@@ -51,3 +52,4 @@ struct VecStore {
   // Removes all stored vectors.
   inline void clear() { data.clear(); }
 };
+}  // namespace minivec

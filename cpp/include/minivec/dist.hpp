@@ -10,9 +10,14 @@
 #pragma once
 #include <cmath>
 #include <cstddef>
+#include <functional>
+#include <string>
+#include <stdexcept>
 
 namespace minivec
 {
+    // Function type for distance computation between two vectors.
+    using DistanceFunc = std::function<float(const float *, const float *, int)>;
 
     // Computes the squared L2 (Euclidean) distance between two float vectors.
     //
@@ -86,6 +91,17 @@ namespace minivec
     inline float l2_distance(const float *a, const float *b, int dim)
     {
         return std::sqrt(l2_squared_distance(a, b, dim));
+    }
+
+    // Function to map string to function pointer
+    // NOTE: Add new functions here to supported distance function names only.
+    inline DistanceFunc get_distance_func(const std::string &name)
+    {
+        if (name == "l2")
+            return l2_distance;
+        if (name == "l2_squared")
+            return l2_squared_distance;
+        throw std::invalid_argument("Unsupported distance function: " + name);
     }
 
 }

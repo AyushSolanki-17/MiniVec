@@ -59,7 +59,7 @@ TEST(HNSWAccuracy, RecallSmallDataset) {
 
     // Build index
     // experiment: increase connectivity and construction ef
-    HNSWIndexSimple index(dim, /*M=*/32, /*efConstruction=*/200, /*efSearch=*/100);
+    minivec::HNSWIndexSimple index(dim, /*M=*/32, /*efConstruction=*/200, /*efSearch=*/100);
     //HNSWIndexSimple index(dim);
     for (int i=0;i<N;++i) index.insert_vector(db[i].data());
 
