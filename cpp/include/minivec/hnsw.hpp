@@ -24,6 +24,7 @@
 #include "utils.hpp"
 #include "layer_generator.hpp"
 #include "dist.hpp"
+#include "search_stats.hpp"
 
 #include <vector>
 #include <shared_mutex>
@@ -196,7 +197,7 @@ namespace minivec
         //   A priority queue (max-heap) of Candidate objects ordered by
         //   CandidateCompareInverse.
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
-        ef_search_layer(const float *query, int entry_id, int layer, int ef);
+        ef_search_layer(const float *query, int entry_id, int layer, int ef, SearchStats* stats = nullptr);
 
         // Performs greedy search on a specific layer starting from an entry node.
         //
@@ -221,7 +222,7 @@ namespace minivec
         // Returns:
         //   A vector of Candidate objects representing the top-k approximate
         //   nearest neighbors, typically sorted by increasing distance.
-        std::vector<Candidate> search_top_k(const float *query, int ef, int k);
+        std::vector<Candidate> search_top_k(const float *query, int ef, int k, SearchStats* stats = nullptr);
 
         // Filters the candidate set to produce the final top-k results.
         //

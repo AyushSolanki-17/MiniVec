@@ -37,7 +37,7 @@ namespace minivec
           entry_point(-1),
           dim(dim_),
           store(dim_),
-          layer_gen(deterministic_levelgen? minivec::HNSWLevelGenerator::from_M(M_, deterministic_levelgen, levelgen_seed) : minivec::HNSWLevelGenerator::from_M(M_)),
+          layer_gen(deterministic_levelgen ? minivec::HNSWLevelGenerator::from_M(M_, deterministic_levelgen, levelgen_seed) : minivec::HNSWLevelGenerator::from_M(M_)),
           efConstruction(efConstruction_),
           efSearch(efSearch_),
           distance_func(get_distance_func(distance_func_name_)),
@@ -438,7 +438,7 @@ namespace minivec
     // Returns:
     //   A max-heap (by distance) of Candidate objects representing the best nodes.
     std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
-    HNSWIndexSimple::ef_search_layer(const float *query, int entry_id, int layer, int ef)
+    HNSWIndexSimple::ef_search_layer(const float *query, int entry_id, int layer, int ef, SearchStats *stats)
     {
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> best_nodes;
         std::priority_queue<Candidate, std::vector<Candidate>, MinHeapCompare> candidates;
@@ -459,6 +459,13 @@ namespace minivec
         candidates.emplace(current, curr_dist);
         best_nodes.emplace(current, curr_dist);
         visited[current] = true;
+        if (stats)
+        {
+            stats->visited_nodes++;
+            stats->layer_visits[layer]++;
+            stats->distance_calls++;
+        }
+
         while (!candidates.empty())
         {
 
@@ -492,11 +499,22 @@ namespace minivec
                 if (!visited[neighbor])
                 {
                     visited[neighbor] = true;
+                    if (stats)
+                    {
+                        stats->visited_nodes++;
+                        stats->layer_visits[layer]++;
+                    }
+
                     // Compute distance to neighbor
                     const float *pv_nei = store.ptr(neighbor);
                     if (!pv_nei)
                         continue;
                     float dist = distance_func(query, pv_nei, dim);
+                    if (stats)
+                    {
+                        stats->distance_calls++;
+                    }
+
                     candidates.emplace(neighbor, dist);
 
                     if (static_cast<int>(best_nodes.size()) < ef)
@@ -529,7 +547,7 @@ namespace minivec
     // Returns:
     //   A vector of the top-k Candidate results sorted by distance.
     std::vector<Candidate> HNSWIndexSimple::search_top_k(
-        const float *query, int ef, int k)
+        const float *query, int ef, int k, SearchStats *stats)
     {
         std::shared_lock<std::shared_mutex> idx_shared_lock(index_mtx);
         if (nodes.empty() || entry_point < 0)
@@ -545,7 +563,7 @@ namespace minivec
 
         // EF search on layer 0.
         int effective_ef = (ef > 0) ? ef : efSearch;
-        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer(query, current, 0, effective_ef);
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer(query, current, 0, effective_ef, stats);
 
         return filter_top_k(query, candidates, k);
     }

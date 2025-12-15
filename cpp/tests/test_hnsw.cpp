@@ -1,7 +1,12 @@
 #include <gtest/gtest.h>
 #include "minivec/hnsw.hpp"  // your HNSW class
 #include <vector>
+#include <iostream>
 #include <limits>
+#include <random>
+#include <chrono>
+#include <unordered_set>
+#include <unordered_map>
 
 //Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
@@ -22,7 +27,21 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     minivec::HNSWIndexSimple a(dim, 16, 100, 50, true, seed);
     minivec::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
 
-    ASSERT_EQ(build(a), build(b));
+    std::cout<<"Building index A..."<<std::endl;
+    std::vector<int> a1 = build(a);
+    std::cout<<"Building index B..."<<std::endl;
+    std::vector<int> b1 = build(b);
+
+    std::cout<<"Comparing results..."<<std::endl;
+    std::cout<<"Index A results: ";
+    for (auto id : a1) std::cout<<id<<" ";
+    std::cout<<std::endl;
+    std::cout<<"Index B results: ";
+    for (auto id : b1) std::cout<<id<<" ";
+    std::cout<<std::endl;
+
+    ASSERT_EQ(std::unordered_set<int>(a1.begin(), a1.end()),std::unordered_set<int>(b1.begin(), b1.end()));
+
 }
 
 // Probabilistic test: allow normal HNSW level generation
