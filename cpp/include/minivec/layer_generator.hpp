@@ -115,5 +115,4 @@ class HNSWLevelGenerator {
     return rng;
   }
 };
-
 } // namespace minivec

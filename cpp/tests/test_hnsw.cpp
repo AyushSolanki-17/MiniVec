@@ -5,7 +5,7 @@
 
 //Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, InsertAndSearchDeterministic) {
-    HNSWIndexSimple index(32);  // 32-dim vectors
+    minivec::HNSWIndexSimple index(32);  // 32-dim vectors
 
     std::vector<float> vec1(32, 0.5f);
     std::vector<float> vec2(32, 0.8f);
@@ -22,7 +22,7 @@ TEST(HNSWTest, InsertAndSearchDeterministic) {
 
 // Probabilistic test: allow normal HNSW level generation
 TEST(HNSWTest, InsertAndSearchProbabilistic) {
-    HNSWIndexSimple index(32);
+    minivec::HNSWIndexSimple index(32);
 
     std::vector<float> vec1(32, 0.5f);
     std::vector<float> vec2(32, 0.8f);
@@ -40,7 +40,7 @@ TEST(HNSWTest, InsertAndSearchProbabilistic) {
 
 // Memory test: insert many vectors until allocation fails
 TEST(HNSWTest, MemoryLimitsLow) {
-    HNSWIndexSimple index(1028);  // 1028-dim vectors
+    minivec::HNSWIndexSimple index(1028);  // 1028-dim vectors
 
     const int max_vectors = 25; // fits in ~10 MB
     bool allocation_failed = false;

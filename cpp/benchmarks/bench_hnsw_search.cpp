@@ -7,7 +7,7 @@ static void BM_HNSW_Search(benchmark::State& state)
     const int N = 10'000;
     const int efSearch = state.range(0);
 
-    HNSWIndexSimple index(dim, 32, 200, efSearch);
+    minivec::HNSWIndexSimple index(dim, 32, 200, efSearch);
 
     std::mt19937 rng(42);
     std::normal_distribution<float> dist(0,1);

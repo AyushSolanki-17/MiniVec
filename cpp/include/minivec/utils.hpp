@@ -11,6 +11,8 @@
 #include <sstream>
 #include <stdexcept>
 
+namespace minivec
+{
 // Represents a search or graph candidate with an identifier and distance.
 struct Candidate
 {
@@ -38,7 +40,7 @@ inline void throw_if_invalid_node_id(const std::vector<std::unique_ptr<HNSWNodeS
 }
 struct MaxHeapCompare { bool operator()(const Candidate&a,const Candidate&b) const { return a.distance < b.distance; } };
 struct MinHeapCompare { bool operator()(const Candidate&a,const Candidate&b) const { return a.distance > b.distance; } };
-
+}
 // // | " << __FILE__ << ":" << __LINE__ << "
 // #define LOG(message)                              \
 //     std::cout << "[INFO]--[" << __func__ << " ] " \

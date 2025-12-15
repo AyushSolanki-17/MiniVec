@@ -19,6 +19,8 @@
 #include <iostream>
 #include <string>
 
+namespace minivec
+{
 // Constructs a simple HNSW index.
 //
 // Args:
@@ -26,7 +28,9 @@
 //   M_: Maximum number of neighbors per layer.
 //   efConstruction_: Size of dynamic candidate list during construction.
 //   efSearch_: Default ef parameter for search.
-HNSWIndexSimple::HNSWIndexSimple(int dim_, int M_, int efConstruction_, int efSearch_)
+HNSWIndexSimple::HNSWIndexSimple(int dim_, int M_, int efConstruction_, int efSearch_, 
+                               const std::string& distance_func_name_,
+                               const std::string& final_distance_func_name_)
     : M(M_),
       max_layer(-1),
       entry_point(-1),
@@ -34,7 +38,11 @@ HNSWIndexSimple::HNSWIndexSimple(int dim_, int M_, int efConstruction_, int efSe
       store(dim_),
       layer_gen(minivec::HNSWLevelGenerator::from_M(M_)),
       efConstruction(efConstruction_),
-      efSearch(efSearch_) {}
+      efSearch(efSearch_),
+      distance_func(get_distance_func(distance_func_name_)),
+      final_distance_func(get_distance_func(final_distance_func_name_))
+      {}
+
 
 // Adds a new node with the given vector and layer.
 //
@@ -158,7 +166,7 @@ void HNSWIndexSimple::prune_neighbours(int id, int layer)
     const float *id_ptr = get_vector_ptr(id);
     for (int n : nbrs)
     {
-        float d = minivec::l2_squared_distance(id_ptr, get_vector_ptr(n), dim);
+        float d = distance_func(id_ptr, get_vector_ptr(n), dim);
         candidates.push_back({n, d});
     }
 
@@ -189,7 +197,7 @@ void HNSWIndexSimple::prune_neighbours(int id, int layer)
 
         for (size_t j = 0; j < selected_ptrs.size(); ++j)
         {
-            float ds = minivec::l2_squared_distance(c_ptr, selected_ptrs[j], dim);
+            float ds = distance_func(c_ptr, selected_ptrs[j], dim);
 
             // HNSW diversity rule
             if (ds < c.distance)
@@ -390,7 +398,7 @@ int HNSWIndexSimple::greedy_search_layer(const float *query, int entry_id, int l
         }
         // cache current pointer once
         const float *pv_curr = store.ptr(current);
-        float best_dist = minivec::l2_squared_distance(query, pv_curr, dim);
+        float best_dist = distance_func(query, pv_curr, dim);
         // Explore neighbors
         std::vector<int> nbrs = nodes[current]->get_neighbors(layer);
         for (int neighbor : nbrs)
@@ -401,7 +409,7 @@ int HNSWIndexSimple::greedy_search_layer(const float *query, int entry_id, int l
             if (!pv_curr || !pv_nei)
                 continue;
             
-            float c_dist = minivec::l2_squared_distance(query, pv_nei, dim);
+            float c_dist = distance_func(query, pv_nei, dim);
             // Check for improvement
             if (c_dist < best_dist)
             {
@@ -446,7 +454,7 @@ HNSWIndexSimple::ef_search_layer(const float *query, int entry_id, int layer, in
     std::vector<bool> visited(n_nodes, false);
     // Initialize with entry point.
     int current = entry_id;
-    float curr_dist = minivec::l2_squared_distance(query, store.ptr(current), dim);
+    float curr_dist = distance_func(query, store.ptr(current), dim);
     candidates.emplace(current, curr_dist);
     best_nodes.emplace(current, curr_dist);
     visited[current] = true;
@@ -487,7 +495,7 @@ HNSWIndexSimple::ef_search_layer(const float *query, int entry_id, int layer, in
                 const float *pv_nei = store.ptr(neighbor);
                 if (!pv_nei)
                     continue;
-                float dist = minivec::l2_squared_distance(query, pv_nei, dim);
+                float dist = distance_func(query, pv_nei, dim);
                 candidates.emplace(neighbor, dist);
 
                 if (static_cast<int>(best_nodes.size()) < ef)
@@ -581,7 +589,7 @@ std::vector<Candidate> HNSWIndexSimple::filter_top_k(
 
     for (Candidate &c : top_k)
     {
-        c.distance = minivec::l2_distance(query, get_vector_ptr(c.id), dim);
+        c.distance = final_distance_func(query, get_vector_ptr(c.id), dim);
     }
 
     std::sort(top_k.begin(), top_k.end(),
@@ -666,3 +674,4 @@ void HNSWIndexSimple::remove_link_symmetrically(int a, int b, int layer)
         nodes[b]->remove_neighbor_nolock(a, layer);
     }
 }
+}  // namespace minivec
