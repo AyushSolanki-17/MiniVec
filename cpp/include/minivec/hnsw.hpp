@@ -89,6 +89,7 @@ namespace minivec
         //       (default 200).
         //   efSearch_: Default search breadth used during queries (default 200).
         HNSWIndexSimple(int dim_, int M_ = 16, int efConstruction_ = 200, int efSearch_ = 200,
+                        bool deterministic_levelgen = false, uint32_t levelgen_seed = 42,
                         const std::string &distance_func_name_ = "l2_squared",
                         const std::string &final_distance_func_name_ = "l2");
 

@@ -4,20 +4,25 @@
 #include <limits>
 
 //Deterministic test: insert at level 0 to avoid randomness
-TEST(HNSWTest, InsertAndSearchDeterministic) {
-    minivec::HNSWIndexSimple index(32);  // 32-dim vectors
+TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
+    constexpr int dim = 32;
+    constexpr uint32_t seed = 123;
 
-    std::vector<float> vec1(32, 0.5f);
-    std::vector<float> vec2(32, 0.8f);
+    auto build = [&](minivec::HNSWIndexSimple& index) {
+        for (int i = 0; i < 100; ++i) {
+            std::vector<float> v(dim, float(i));
+            index.insert_vector(v.data());
+        }
+        auto r = index.search_top_k(index.get_vector_ptr(10), 50, 5);
+        std::vector<int> ids;
+        for (auto& c : r) ids.push_back(c.id);
+        return ids;
+    };
 
-    // Directly add nodes at level 0 for deterministic behavior
-    index.add_node(vec1.data(), 0);
-    index.add_node(vec2.data(), 0);
+    minivec::HNSWIndexSimple a(dim, 16, 100, 50, true, seed);
+    minivec::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
 
-    auto neighbors = index.search_top_k(vec1.data(), 10, 1);
-
-    ASSERT_EQ(neighbors.size(), 1);
-    ASSERT_EQ(neighbors[0].id, 0);  // deterministic nearest neighbor
+    ASSERT_EQ(build(a), build(b));
 }
 
 // Probabilistic test: allow normal HNSW level generation
