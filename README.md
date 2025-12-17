@@ -1,5 +1,39 @@
-# MiniVec
-A mini version of FAISS
+# MiniVec 
+**A high-performance, research-oriented C++ vector search engine with Python bindings**
+
+![C++](https://img.shields.io/badge/C++-17-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Build](https://img.shields.io/badge/Build-CMake-success.svg)
+
+---
+
+## 🔍 What is MiniVec?
+
+**MiniVec** is a **from-scratch implementation of a Hierarchical Navigable Small World (HNSW)** vector index, written in modern C++ and exposed to Python via `pybind11`.
+
+Unlike wrappers around existing libraries, MiniVec focuses on:
+- **clarity of implementation**
+- **research extensibility**
+- **instrumentation and observability**
+- **production-quality concurrency & memory safety**
+
+This project is designed to demonstrate **systems-level engineering, algorithmic understanding, and research rigor**.
+
+---
+
+## ✨ Key Features
+
+- ⚡ **Fast Approximate Nearest Neighbor (ANN) Search**
+- 🧠 **HNSW graph built from first principles**
+- 🔧 **Configurable construction & search parameters** (`M`, `efConstruction`, `efSearch`)
+- 📊 **Built-in search instrumentation** (visited nodes, distance calls, layer stats)
+- 🧪 **Extensive test suite** (correctness, recall, latency sanity)
+- 🐍 **Zero-copy Python bindings** via `pybind11`
+- 🧵 **Thread-safe graph updates**
+- 📦 **Clean CMake-based build system**
+
+---
 
 ## Custom Benchmarking Results
 We benchmarked HNSW over M ∈ {8,16,32,64}.
