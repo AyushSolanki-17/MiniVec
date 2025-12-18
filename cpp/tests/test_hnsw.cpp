@@ -1,23 +1,47 @@
 #include <gtest/gtest.h>
 #include "minivec/hnsw.hpp"  // your HNSW class
 #include <vector>
+#include <iostream>
 #include <limits>
+#include <random>
+#include <chrono>
+#include <unordered_set>
+#include <unordered_map>
 
 //Deterministic test: insert at level 0 to avoid randomness
-TEST(HNSWTest, InsertAndSearchDeterministic) {
-    minivec::HNSWIndexSimple index(32);  // 32-dim vectors
+TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
+    constexpr int dim = 32;
+    constexpr uint32_t seed = 123;
 
-    std::vector<float> vec1(32, 0.5f);
-    std::vector<float> vec2(32, 0.8f);
+    auto build = [&](minivec::HNSWIndexSimple& index) {
+        for (int i = 0; i < 100; ++i) {
+            std::vector<float> v(dim, float(i));
+            index.insert_vector(v.data());
+        }
+        auto r = index.search_top_k(index.get_vector_ptr(10), 50, 5);
+        std::vector<int> ids;
+        for (auto& c : r) ids.push_back(c.id);
+        return ids;
+    };
 
-    // Directly add nodes at level 0 for deterministic behavior
-    index.add_node(vec1.data(), 0);
-    index.add_node(vec2.data(), 0);
+    minivec::HNSWIndexSimple a(dim, 16, 100, 50, true, seed);
+    minivec::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
 
-    auto neighbors = index.search_top_k(vec1.data(), 10, 1);
+    std::cout<<"Building index A..."<<std::endl;
+    std::vector<int> a1 = build(a);
+    std::cout<<"Building index B..."<<std::endl;
+    std::vector<int> b1 = build(b);
 
-    ASSERT_EQ(neighbors.size(), 1);
-    ASSERT_EQ(neighbors[0].id, 0);  // deterministic nearest neighbor
+    std::cout<<"Comparing results..."<<std::endl;
+    std::cout<<"Index A results: ";
+    for (auto id : a1) std::cout<<id<<" ";
+    std::cout<<std::endl;
+    std::cout<<"Index B results: ";
+    for (auto id : b1) std::cout<<id<<" ";
+    std::cout<<std::endl;
+
+    ASSERT_EQ(std::unordered_set<int>(a1.begin(), a1.end()),std::unordered_set<int>(b1.begin(), b1.end()));
+
 }
 
 // Probabilistic test: allow normal HNSW level generation

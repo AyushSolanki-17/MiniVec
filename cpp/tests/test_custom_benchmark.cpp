@@ -170,8 +170,8 @@ struct CSVWriter {
                           << " Recall=" << mean_recall << std::endl;
             }
             /* ---- Sanity checks (non-flaky) ---- */
-            if (K == 1)  EXPECT_GE(mean_recall, 0.60f);
-            else EXPECT_GE(mean_recall, 0.60f);
+            //if (K == 1)  EXPECT_GE(mean_recall, 0.60f);
+            EXPECT_GE(mean_recall, 0.60f);
         }
     }
 }
