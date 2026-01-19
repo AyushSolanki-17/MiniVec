@@ -452,13 +452,15 @@ namespace minivec
             throw std::out_of_range(oss.str());
         }
         // Track visited nodes to avoid re-processing.
-        std::vector<bool> visited(n_nodes, false);
+        std::unordered_set<int> visited;
+        visited.reserve(ef * 3);
+
         // Initialize with entry point.
         int current = entry_id;
         float curr_dist = distance_func(query, store.ptr(current), dim);
         candidates.emplace(current, curr_dist);
         best_nodes.emplace(current, curr_dist);
-        visited[current] = true;
+        visited.insert(current);
         if (stats)
         {
             stats->visited_nodes++;
@@ -475,10 +477,11 @@ namespace minivec
             // Termination condition: current distance worse than worst in best_nodes.
             float worst_best_distance = best_nodes.top().distance;
 
-            if (curr_dist > worst_best_distance)
+            if (curr_dist > worst_best_distance && (int)best_nodes.size() >= ef)
             {
                 break;
             }
+
             // Defensive validation: ensure current refers to a valid node and pointer
             if (current < 0 || current >= n_nodes)
             {
@@ -496,9 +499,9 @@ namespace minivec
             {
                 if (neighbor < 0 || neighbor >= n_nodes)
                     continue;
-                if (!visited[neighbor])
+                if (visited.find(neighbor) == visited.end())
                 {
-                    visited[neighbor] = true;
+                    visited.insert(neighbor);
                     if (stats)
                     {
                         stats->visited_nodes++;
@@ -527,6 +530,7 @@ namespace minivec
                         // Replace worst best node
                         best_nodes.pop();
                         best_nodes.emplace(neighbor, dist);
+                        worst_best_distance = best_nodes.top().distance;
                     }
                 }
             }
