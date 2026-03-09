@@ -11,16 +11,59 @@
 
 ## 🔍 Overview
 
-**MiniVec** is a **from-scratch implementation of the Hierarchical Navigable Small World (HNSW)** approximate nearest neighbor (ANN) algorithm, written in modern C++ and exposed to Python via `pybind11`.
+**MiniVec** is a **from-scratch implementation of the Hierarchical Navigable Small World (HNSW)** approximate nearest neighbor (ANN) algorithm, written in modern **C++17** and exposed to Python via **pybind11**.
 
 Unlike projects that wrap existing ANN libraries, MiniVec is intentionally built to:
 
-* expose the **full internal mechanics** of HNSW
-* emphasize **correctness, determinism, and observability**
-* serve as a **research & systems-engineering reference**
-* remain close to **production-grade constraints** (thread safety, memory control, reproducibility)
+- expose the **internal mechanics of HNSW**
+- emphasize **determinism and correctness**
+- support **research experimentation**
+- demonstrate **systems-level engineering practices**
 
-MiniVec demonstrates **deep algorithmic understanding**, **low-level systems design**, and **clean API engineering**.
+The goal of this project is not to replace FAISS or hnswlib, but to provide a **clear, inspectable, and extensible reference implementation** of ANN search.
+
+---
+
+## 🚀 Quick Start
+
+Clone the repository:
+
+```bash
+git clone https://github.com/<your-username>/minivec
+cd minivec
+````
+
+---
+
+## ⚙️ Installation
+
+### Requirements
+
+* C++17 compiler (GCC / Clang)
+* CMake ≥ 3.16
+* Python ≥ 3.11 (optional for bindings)
+* pybind11
+
+---
+
+### Build C++ Library
+
+```bash
+mkdir build
+cd build
+cmake ..
+make -j
+```
+
+---
+
+### Install Python Bindings
+
+```bash
+pip install -e .
+```
+
+This exposes the MiniVec index to Python.
 
 ---
 
@@ -28,22 +71,30 @@ MiniVec demonstrates **deep algorithmic understanding**, **low-level systems des
 
 ![MiniVec Architecture](./docs/images/HNSW.png)
 
-**High-level flow:**
+High-level workflow:
+
+### Index Construction
 
 ```
 Vector Insertion
-   → Layer Generation
+   → Layer Assignment
    → Greedy Descent
-   → efConstruction Search
-   → Neighbor Linking & Pruning
-   → Hierarchical Graph
-
-Query Search
-   → Greedy Descent (top → bottom)
-   → efSearch on layer 0
-   → Top-K Selection
-   → Instrumented Metrics
+   → efConstruction Candidate Search
+   → Neighbor Selection & Pruning
+   → Hierarchical Graph Update
 ```
+
+### Query Search
+
+```
+Query Vector
+   → Greedy Descent (top layers)
+   → efSearch Exploration (bottom layer)
+   → Candidate Heap
+   → Top-K Nearest Neighbors
+```
+
+The algorithm follows the **standard HNSW design**, maintaining a **multi-layer proximity graph** that enables logarithmic search complexity.
 
 ---
 
@@ -51,54 +102,62 @@ Query Search
 
 ### Core Functionality
 
-* ⚡ **Fast Approximate Nearest Neighbor Search (ANN)**
-* 🧠 **Complete HNSW implementation from first principles**
-* 🔧 **Fully configurable parameters**
+* ⚡ **Approximate Nearest Neighbor Search**
+* 🧠 **Full HNSW implementation from first principles**
+* 🔧 Configurable parameters:
 
-  * `M` (max neighbors per layer)
-  * `efConstruction` (build-time search width)
-  * `efSearch` (query-time search width)
-
-### Engineering & Research Focus
-
-* 📊 **Built-in search instrumentation**
-
-  * visited nodes
-  * distance computations
-  * per-layer traversal statistics
-* 🧪 **Extensive test suite**
-
-  * deterministic build validation
-  * recall benchmarks
-  * latency sanity checks
-* 🧵 **Thread-safe graph updates**
-
-  * fine-grained locking
-  * deadlock-safe node linking
-* 📦 **Clean CMake-based build system**
-* 🐍 **Zero-copy Python bindings** via `pybind11`
-
-### Design Philosophy
-
-* No external ANN dependencies
-* No hidden heuristics
-* No opaque optimizations
-* Everything measurable, testable, and explainable
+  * `M` — maximum neighbors per node
+  * `efConstruction` — graph build search width
+  * `efSearch` — query search width
 
 ---
 
-## 🔁 Deterministic Builds (Reproducibility)
+### Systems Engineering Focus
 
-MiniVec supports **optional deterministic graph construction**.
+* 📊 **Search instrumentation**
+
+  * visited nodes
+  * distance computations
+  * layer traversal statistics
+
+* 🧵 **Thread-safe graph updates**
+
+  * fine-grained locking
+  * deadlock-safe neighbor linking
+
+* 📦 **CMake-based build system**
+
+* 🐍 **Zero-copy Python bindings via pybind11**
+
+---
+
+### Design Philosophy
+
+MiniVec intentionally avoids hidden optimizations.
+
+Goals:
+
+* transparency
+* reproducibility
+* inspectability
+* algorithmic correctness
+
+Everything is measurable and observable.
+
+---
+
+## 🔁 Deterministic Graph Construction
+
+MiniVec supports **deterministic index builds**.
 
 When enabled:
 
 * layer assignment is seeded
 * insertion order is preserved
-* identical inputs produce **structurally identical graphs**
-* search results are **bit-for-bit reproducible**
+* graph structure becomes reproducible
+* search results are deterministic
 
-This is critical for:
+This is useful for:
 
 * benchmarking
 * regression testing
@@ -109,7 +168,7 @@ This is critical for:
 
 ## 📊 Search Instrumentation
 
-MiniVec exposes **SearchStats** during queries:
+MiniVec exposes runtime search metrics:
 
 ```cpp
 struct SearchStats {
@@ -119,83 +178,58 @@ struct SearchStats {
 };
 ```
 
-These metrics allow:
+These statistics enable:
 
-* empirical recall vs latency analysis
-* verification of HNSW traversal behavior
-* comparison against FAISS / hnswlib
-* debugging poor recall configurations
+* recall vs latency analysis
+* algorithm debugging
+* performance comparisons against FAISS / hnswlib
+* tuning search parameters
 
-Instrumentation is available in **C++** and can be exposed to **Python bindings**.
-
----
-
-Here is your updated benchmarking section with the 1M-vector production benchmark cleanly integrated and consistent with the tone:
+Instrumentation is available in **C++** and can be exposed through **Python bindings**.
 
 ---
 
-## 📈 Benchmarking Results (Representative)
+## 📈 Benchmarking Results
 
-We benchmarked MiniVec on both synthetic and large-scale datasets with:
+MiniVec was evaluated on synthetic and large-scale datasets.
 
-* dimensionality: 128
-* dataset size (synthetic): 10k vectors
-* dataset size (large-scale): 1M vectors
-* distance metric: L2
-* hardware: C++17 implementation with multi-layer HNSW graph construction
+Configuration:
 
-Additionally, a from-scratch HNSW index implemented in C++17 was evaluated on a **1M-vector benchmark**, achieving:
+| Parameter      | Value            |
+| -------------- | ---------------- |
+| Dimensionality | 128              |
+| Distance       | L2               |
+| Dataset sizes  | 10K / 1M vectors |
 
-* **Recall@10: 89%**
-* **P50 latency: 11.7 ms**
-* **2.6× speedup over brute-force search**
+Hardware: modern x86 CPU
 
 ---
 
-### Observations
-
-* **M < 16** → sharp recall degradation
-* **M = 32** → strong recall–latency balance
-* Increasing `efSearch` improves recall at the cost of tail latency
-* Scaling from 10k → 1M vectors preserves logarithmic search behavior, with predictable latency growth
-
----
-
-### Sample Results (10k dataset)
+### Small Dataset (10K vectors)
 
 | Configuration      | Recall@10 | P50 Latency |
 | ------------------ | --------- | ----------- |
-| M=32, efSearch=100 | ≈ 0.90    | ≈ 0.18 ms   |
-| Brute Force        | 1.00      | ≈ 0.36 ms   |
+| M=32 efSearch=100  | ≈ 0.90    | ≈ 0.18 ms   |
+| Brute Force Search | 1.00      | ≈ 0.36 ms   |
 
 ---
 
-### Large-Scale Benchmark (1M dataset)
+### Large Dataset (1M vectors)
 
-| Configuration               | Recall@10 | P50 Latency |
-| --------------------------- | --------- | ----------- |
-| HNSW (M=32, efSearch tuned) | 0.89      | 11.7 ms     |
-| Brute Force                 | 1.00      | ~30 ms      |
+| Configuration              | Recall@10 | P50 Latency |
+| -------------------------- | --------- | ----------- |
+| HNSW (M=32 tuned efSearch) | 0.89      | 11.7 ms     |
+| Brute Force                | 1.00      | ~30 ms      |
 
-This aligns closely with **FAISS HNSW defaults**, validating the correctness and scalability of the implementation while demonstrating real-world ANN performance characteristics at scale.
+Performance scales **logarithmically with dataset size**, consistent with theoretical HNSW expectations.
 
----
-
-## 🧠 Why This Project Exists
-
-MiniVec is **not** meant to replace FAISS or hnswlib.
-
-It exists to:
-
-* deeply understand ANN internals
-* explore algorithm–systems tradeoffs
-* build confidence in performance-critical C++ code
-* serve as a foundation for future research (adaptive M, learned heuristics, SIMD, GPU offload)
+Results are comparable to default FAISS HNSW configurations.
 
 ---
 
+## 🐍 Python Usage
 
-## 🐍 Python Usage (Example)
+Example usage from Python:
 
 ```python
 import minivec
@@ -208,16 +242,72 @@ index = minivec.HNSWIndex(
 )
 
 index.add(vectors)
+
 results, stats = index.search(query, k=10, return_stats=True)
 ```
 
 ---
 
-## 📌 Future Work
+## 📂 Project Structure
 
-* Adaptive `efSearch`
-* Memory-mapped index
-* Deletion & update support
-* GPU-accelerated search backend
-* Research experiments on deterministic vs stochastic graphs
+```
+minivec/
+├── include/        # HNSW graph data structures
+├── src/            # core algorithm implementation
+├── python/         # pybind11 bindings
+├── benchmarks/     # performance experiments
+├── tests/          # deterministic & correctness tests
+├── examples/       # minimal usage examples
+└── docs/           # algorithm documentation
+```
+
+---
+
+## 🧠 Why This Project Exists
+
+MiniVec is not intended to compete with FAISS or hnswlib.
+
+Instead it exists to:
+
+* deeply understand ANN algorithms
+* explore algorithm–systems tradeoffs
+* demonstrate performance-oriented C++ design
+* provide a transparent reference implementation
+
+It is designed to be **read, studied, modified, and extended**.
+
+---
+
+## 🔮 Future Work
+
+Planned improvements:
+
+* adaptive `efSearch`
+* memory-mapped indices
+* deletion and update support
+* SIMD distance optimizations
+* GPU search backend
+* research experiments on deterministic vs stochastic graph builds
+
+---
+
+## 📜 License
+
+MIT License
+
+---
+
+## 🙌 Acknowledgements
+
+This project is inspired by the original **HNSW paper**:
+
+> *Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs*
+> Yu. A. Malkov, D. A. Yashunin (2018)
+
+and by open-source implementations such as:
+
+* FAISS
+* hnswlib
+
+MiniVec aims to provide a **minimal, transparent implementation for learning and experimentation**.
 
