@@ -12,8 +12,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Core library
 # =========================================================
 add_library(minivec_core
-    src/utils.cpp
-    src/dist.cpp
     src/hnsw_node.cpp
     src/hnsw.cpp
 )
@@ -27,7 +25,7 @@ target_include_directories(minivec_core
 if (MSVC)
     target_compile_options(minivec_core PRIVATE /O2 /EHsc)
 else()
-    target_compile_options(minivec_core PRIVATE -O3 -march=native -funroll-loops)
+    target_compile_options(minivec_core PRIVATE -O3 -funroll-loops)
 endif()
 
 # =========================================================
