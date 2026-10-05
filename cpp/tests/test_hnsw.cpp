@@ -146,6 +146,30 @@ TEST(HNSWTest, EfSearchRefreshesWorstDistanceForEachNeighbor) {
     EXPECT_EQ(remaining.top().id, entry_id);
 }
 
+TEST(HNSWTest, SearchCountsUpperLayerGreedyHopsAndReusesVisitsSafely) {
+    minivec::HNSWIndexSimple index(1, 2, 10, 10);
+    const float far[] = {5.0f};
+    const float near[] = {1.0f};
+    const float query[] = {0.0f};
+    const int far_id = index.add_node(far, 1);
+    const int near_id = index.add_node(near, 1);
+    index.link_nodes_symmetrically(far_id, near_id, 1);
+    index.link_nodes_symmetrically(far_id, near_id, 0);
+
+    minivec::SearchStats stats;
+    const auto first = index.search_top_k(query, 10, 2, &stats);
+    ASSERT_EQ(first.size(), 2u);
+    EXPECT_EQ(first.front().id, near_id);
+    EXPECT_GE(stats.greedy_hops, 1u);
+
+    // A subsequent search starts a new visitation epoch and must see the same
+    // graph, without inheriting marks from the preceding traversal.
+    const auto second = index.search_top_k(query, 10, 2);
+    ASSERT_EQ(second.size(), first.size());
+    EXPECT_EQ(second[0].id, first[0].id);
+    EXPECT_EQ(second[1].id, first[1].id);
+}
+
 // Probabilistic test: allow normal HNSW level generation
 TEST(HNSWTest, InsertAndSearchProbabilistic) {
     minivec::HNSWIndexSimple index(32);

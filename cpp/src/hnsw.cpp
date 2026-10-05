@@ -15,6 +15,7 @@
 #include <thread>
 #include <mutex>
 #include <shared_mutex>
+#include <unordered_map>
 
 #include <iostream>
 #include <string>
@@ -365,7 +366,7 @@ namespace minivec
     //
     // Returns:
     //   Id of the closest node found on this layer.
-    int HNSWIndexSimple::greedy_search_layer(const float *query, int entry_id, int layer)
+    int HNSWIndexSimple::greedy_search_layer(const float *query, int entry_id, int layer, SearchStats *stats)
     {
         throw_if_invalid_node_id(nodes, entry_id, "greedy_search_layer: entry_id");
         int n_nodes = static_cast<int>(nodes.size());
@@ -408,6 +409,8 @@ namespace minivec
                     current = neighbor;
                     pv_curr = pv_nei;
                     improved = true;
+                    if (stats)
+                        ++stats->greedy_hops;
                 }
             }
         }
@@ -442,13 +445,30 @@ namespace minivec
             throw std::out_of_range(oss.str());
         }
         // Track visited nodes to avoid re-processing.
-        std::vector<bool> visited(n_nodes, false);
+        // Reuse per-thread visitation storage. Incrementing the epoch avoids
+        // clearing an O(N) bitmap on every layer search while keeping concurrent
+        // queries independent.
+        struct VisitWorkspace
+        {
+            std::vector<uint32_t> epochs;
+            uint32_t current_epoch = 0;
+        };
+        static thread_local std::unordered_map<const HNSWIndexSimple *, VisitWorkspace> workspaces;
+        VisitWorkspace &workspace = workspaces[this];
+        if (workspace.epochs.size() < static_cast<size_t>(n_nodes))
+            workspace.epochs.resize(n_nodes, 0);
+        if (++workspace.current_epoch == 0)
+        {
+            std::fill(workspace.epochs.begin(), workspace.epochs.end(), 0);
+            workspace.current_epoch = 1;
+        }
+        const uint32_t visit_epoch = workspace.current_epoch;
         // Initialize with entry point.
         int current = entry_id;
         float curr_dist = distance_func(query, store.ptr(current), dim);
         candidates.emplace(current, curr_dist);
         best_nodes.emplace(current, curr_dist);
-        visited[current] = true;
+        workspace.epochs[current] = visit_epoch;
         if (stats)
         {
             stats->visited_nodes++;
@@ -486,9 +506,9 @@ namespace minivec
             {
                 if (neighbor < 0 || neighbor >= n_nodes)
                     continue;
-                if (!visited[neighbor])
+                if (workspace.epochs[neighbor] != visit_epoch)
                 {
-                    visited[neighbor] = true;
+                    workspace.epochs[neighbor] = visit_epoch;
                     if (stats)
                     {
                         stats->visited_nodes++;
@@ -551,7 +571,7 @@ namespace minivec
         // Greedy search on upper layers.
         for (int layer = lower_max_layer; layer > 0; layer--)
         {
-            current = greedy_search_layer(query, current, layer);
+            current = greedy_search_layer(query, current, layer, stats);
         }
 
         // EF search on layer 0.

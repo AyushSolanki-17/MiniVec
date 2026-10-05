@@ -9,6 +9,8 @@ namespace minivec
         uint64_t visited_nodes = 0;
         // distance computations           
         uint64_t distance_calls = 0;   
+        // Successful greedy moves during upper-layer descent.
+        uint64_t greedy_hops = 0;
         // per-layer visits      
         std::map<int, uint64_t> layer_visits; 
     };

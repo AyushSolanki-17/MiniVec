@@ -209,7 +209,7 @@ namespace minivec
         //
         // Returns:
         //   Node ID of the closest node found on this layer using greedy descent.
-        int greedy_search_layer(const float *query, int entry_id, int layer);
+        int greedy_search_layer(const float *query, int entry_id, int layer, SearchStats *stats = nullptr);
 
         // Performs a top-k approximate nearest neighbor search.
         //
