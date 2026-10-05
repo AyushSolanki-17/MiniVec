@@ -238,7 +238,8 @@ namespace minivec
         std::vector<Candidate> filter_top_k(
             const float *query,
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates,
-            int k);
+            int k,
+            bool diversity = false);
 
         // Clears all data from the index while keeping configuration parameters.
         void clear();

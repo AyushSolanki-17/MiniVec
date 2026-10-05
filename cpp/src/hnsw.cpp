@@ -147,8 +147,7 @@ namespace minivec
 
     // Prunes neighbors of a node at a given layer using the HNSW diversity rule.
     //
-    // Keeps at most M neighbors that are both close to the node and diverse
-    // among themselves. Removes pruned neighbors symmetrically.
+    // Keeps at most M (or 2M on layer 0) neighbors that are close and diverse.
     //
     // Args:
     //   id: Node id whose neighbors are pruned.
@@ -158,7 +157,8 @@ namespace minivec
         // Validate id
         throw_if_invalid_node_id(nodes, id, "prune_neighbours");
         std::vector<int> nbrs = nodes[id]->get_neighbors(layer);
-        if (nbrs.size() <= M)
+        const int max_neighbors = layer == 0 ? 2 * M : M;
+        if (nbrs.size() <= static_cast<size_t>(max_neighbors))
             return; // Nothing to prune.
 
         // Build candidate list with distances to the node.
@@ -180,16 +180,13 @@ namespace minivec
 
         // Diversity-based selection.
         std::vector<int> selected;
-        selected.reserve(M);
-
-        // cache center pointer once
-        const float *center_ptr = get_vector_ptr(id);
+        selected.reserve(max_neighbors);
 
         // Cache pointers for selected neighbors
         std::vector<const float *> selected_ptrs;
-        selected_ptrs.reserve(M);
+        selected_ptrs.reserve(max_neighbors);
 
-        for (int i = 0; i < pool && (int)selected.size() < M; ++i)
+        for (int i = 0; i < pool && (int)selected.size() < max_neighbors; ++i)
         {
             const Candidate &c = candidates[i];
             const float *c_ptr = get_vector_ptr(c.id);
@@ -216,9 +213,9 @@ namespace minivec
         }
 
         // Fallback: if diversity too strict, fill remaining slots with nearest unused candidates.
-        if ((int)selected.size() < M)
+        if ((int)selected.size() < max_neighbors)
         {
-            for (int i = 0; i < pool && (int)selected.size() < M; ++i)
+            for (int i = 0; i < pool && (int)selected.size() < max_neighbors; ++i)
             {
                 int cand_id = candidates[i].id;
                 // add if not already selected
@@ -242,19 +239,10 @@ namespace minivec
             if (old == id)
                 continue;
 
-            // Lock both nodes in id order to avoid deadlocks and remove neighbor links.
-            if (id < old)
-            {
-                std::scoped_lock lock(nodes[id]->getMutex(), nodes[old]->getMutex());
-                nodes[id]->remove_neighbor_nolock(old, layer);
-                nodes[old]->remove_neighbor_nolock(id, layer);
-            }
-            else
-            {
-                std::scoped_lock lock(nodes[old]->getMutex(), nodes[id]->getMutex());
-                nodes[id]->remove_neighbor_nolock(old, layer);
-                nodes[old]->remove_neighbor_nolock(id, layer);
-            }
+            // Pruning only changes this node's adjacency list. Removing the
+            // reverse edge can isolate the other node and disconnect the graph.
+            std::unique_lock lock(nodes[id]->getMutex());
+            nodes[id]->remove_neighbor_nolock(old, layer);
         }
     }
 
@@ -308,7 +296,8 @@ namespace minivec
         {
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> neighbors_pq =
                 ef_search_layer(vec_vals, current, layer, efConstruction);
-            std::vector<Candidate> neighbors = filter_top_k(vec_vals, neighbors_pq, M);
+            const int max_neighbors = layer == 0 ? 2 * M : M;
+            std::vector<Candidate> neighbors = filter_top_k(vec_vals, neighbors_pq, max_neighbors, true);
 
             for (const Candidate &neighbor : neighbors)
             {
@@ -340,7 +329,8 @@ namespace minivec
                 // Local capacity control: prune under lock to keep it consistent.
                 // Acquire single-node locks for pruning (prune_neighbours will call node-level methods that acquire their own locks).
                 std::vector<int> nbrs = nodes[neighbor.id]->get_neighbors(layer);
-                if ((int)nbrs.size() > M)
+                const int neighbor_limit = layer == 0 ? 2 * M : M;
+                if ((int)nbrs.size() > neighbor_limit)
                 {
                     prune_neighbours(neighbor.id, layer);
                 }
@@ -515,18 +505,20 @@ namespace minivec
                         stats->distance_calls++;
                     }
 
-                    candidates.emplace(neighbor, dist);
-
-                    if (static_cast<int>(best_nodes.size()) < ef)
+                    const int search_width = std::max(1, ef);
+                    if (static_cast<int>(best_nodes.size()) < search_width)
                     {
-                        // Add neighbor to best_nodes
+                        candidates.emplace(neighbor, dist);
                         best_nodes.emplace(neighbor, dist);
                     }
                     else if (dist < worst_best_distance)
                     {
-                        // Replace worst best node
+                        candidates.emplace(neighbor, dist);
                         best_nodes.pop();
                         best_nodes.emplace(neighbor, dist);
+                        // Keep the bound current for the next neighbor in this
+                        // adjacency list.
+                        worst_best_distance = best_nodes.top().distance;
                     }
                 }
             }
@@ -583,7 +575,8 @@ namespace minivec
     std::vector<Candidate> HNSWIndexSimple::filter_top_k(
         const float *query,
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates_pq,
-        int k)
+        int k,
+        bool diversity)
     {
         std::vector<Candidate> top_k;
         top_k.reserve(k);
@@ -601,9 +594,44 @@ namespace minivec
                   [](const Candidate &a, const Candidate &b)
                   { return a.distance < b.distance; });
 
-        for (int i = 0; i < k && i < static_cast<int>(candidates.size()); ++i)
+        if (diversity)
         {
-            top_k.push_back(candidates[i]);
+            std::vector<const float *> selected_ptrs;
+            selected_ptrs.reserve(k);
+            for (const Candidate &candidate : candidates)
+            {
+                const float *candidate_ptr = get_vector_ptr(candidate.id);
+                bool diverse_enough = true;
+                for (const float *selected_ptr : selected_ptrs)
+                {
+                    if (distance_func(candidate_ptr, selected_ptr, dim) < candidate.distance)
+                    {
+                        diverse_enough = false;
+                        break;
+                    }
+                }
+                if (diverse_enough)
+                {
+                    top_k.push_back(candidate);
+                    selected_ptrs.push_back(candidate_ptr);
+                    if (static_cast<int>(top_k.size()) == k)
+                        break;
+                }
+            }
+            // A strict diversity test can reject every remaining candidate;
+            // fill any open slots with the nearest unselected candidates.
+            for (const Candidate &candidate : candidates)
+            {
+                if (static_cast<int>(top_k.size()) == k)
+                    break;
+                if (std::none_of(top_k.begin(), top_k.end(), [&](const Candidate &chosen) { return chosen.id == candidate.id; }))
+                    top_k.push_back(candidate);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < k && i < static_cast<int>(candidates.size()); ++i)
+                top_k.push_back(candidates[i]);
         }
 
         for (Candidate &c : top_k)
@@ -623,6 +651,7 @@ namespace minivec
     // Clears all data from the index and resets state.
     void HNSWIndexSimple::clear()
     {
+        std::unique_lock<std::shared_mutex> lock(index_mtx);
         store.clear();
         nodes.clear();
         entry_point = -1;
