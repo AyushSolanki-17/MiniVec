@@ -510,6 +510,7 @@ namespace minivec
                     {
                         candidates.emplace(neighbor, dist);
                         best_nodes.emplace(neighbor, dist);
+                        worst_best_distance = best_nodes.top().distance;
                     }
                     else if (dist < worst_best_distance)
                     {
@@ -560,10 +561,10 @@ namespace minivec
         return filter_top_k(query, candidates, k);
     }
 
-    // Filters candidates to produce a diverse top-k result set.
+    // Filters candidates to produce a top-k result set, optionally applying
+    // the HNSW diversity heuristic before filling any remaining slots.
     //
-    // Applies the HNSW diversity criterion among candidates and recomputes
-    // distances to the query before final sorting.
+    // Recomputes distances to the query before final sorting.
     //
     // Args:
     //   query: Pointer to query vector of size dim.
@@ -651,7 +652,6 @@ namespace minivec
     // Clears all data from the index and resets state.
     void HNSWIndexSimple::clear()
     {
-        std::unique_lock<std::shared_mutex> lock(index_mtx);
         store.clear();
         nodes.clear();
         entry_point = -1;

@@ -31,7 +31,7 @@ namespace minivec
     explicit HNSWLevelGenerator(double p,
                                 double eps = 1e-6,
                                 std::optional<uint32_t> seed = std::nullopt)
-        : p_(p), eps_(eps), seed_(seed), rng_(make_rng(seed))
+        : p_(p), eps_(eps), rng_(make_rng(seed))
     {
       if (!(p_ > 0.0 && p_ <= 1.0))
       {
@@ -92,7 +92,7 @@ namespace minivec
     double p_;
     double eps_;
     int max_level_{0};
-    std::optional<uint32_t> seed_;
+    // Keep RNG state with this generator so each index honors its own seed.
     mutable std::mt19937 rng_;
     mutable std::mutex rng_mutex_;
 

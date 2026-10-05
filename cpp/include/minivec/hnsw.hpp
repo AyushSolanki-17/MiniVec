@@ -232,6 +232,7 @@ namespace minivec
         //   candidates: Priority queue of Candidate objects, typically the
         //       result of ef_search_layer().
         //   k: Number of nearest neighbors to keep.
+        //   diversity: Apply the HNSW neighbor-selection heuristic before reranking.
         //
         // Returns:
         //   A vector of Candidate objects representing the top-k results.

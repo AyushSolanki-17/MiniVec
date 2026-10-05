@@ -100,3 +100,4 @@ tmp/
 .mypy_cache/
 
 hnsw_benchmark.csv
+research/
