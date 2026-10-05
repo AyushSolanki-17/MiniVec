@@ -7,6 +7,8 @@
 #include <chrono>
 #include <unordered_set>
 #include <unordered_map>
+#include <atomic>
+#include <thread>
 
 TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
     minivec::HNSWNodeSimple node(7, 1, 4);
@@ -177,6 +179,88 @@ TEST(HNSWTest, SearchCountsUpperLayerGreedyHopsAndReusesVisitsSafely) {
     ASSERT_EQ(second.size(), first.size());
     EXPECT_EQ(second[0].id, first[0].id);
     EXPECT_EQ(second[1].id, first[1].id);
+}
+
+TEST(HNSWTest, ConcurrentInsertSearchAndClearAreSynchronized) {
+    constexpr int writers = 4;
+    constexpr int inserts_per_writer = 50;
+    constexpr int dim = 8;
+    minivec::HNSWIndexSimple index(dim, 4, 20, 20, true, 123);
+    std::atomic<bool> inserting{true};
+    std::atomic<int> failures{0};
+    const std::vector<float> query(dim, 0.25f);
+
+    std::thread reader([&] {
+        while (inserting.load()) {
+            try {
+                const auto results = index.search_top_k(query.data(), 20, 5);
+                for (const auto &candidate : results)
+                    if (candidate.id < 0) ++failures;
+            } catch (...) {
+                ++failures;
+            }
+        }
+    });
+    std::thread pruner([&] {
+        while (inserting.load()) {
+            const int count = index.get_node_count();
+            if (count == 0) continue;
+            try {
+                index.prune_neighbours(count - 1, 0);
+            } catch (...) {
+                ++failures;
+            }
+        }
+    });
+
+    std::vector<std::thread> worker_threads;
+    for (int worker = 0; worker < writers; ++worker) {
+        worker_threads.emplace_back([&, worker] {
+            for (int i = 0; i < inserts_per_writer; ++i) {
+                std::vector<float> vector(dim, static_cast<float>(worker * inserts_per_writer + i));
+                try {
+                    index.insert_vector(vector.data());
+                } catch (...) {
+                    ++failures;
+                }
+            }
+        });
+    }
+    for (auto &thread : worker_threads) thread.join();
+    inserting = false;
+    reader.join();
+    pruner.join();
+
+    EXPECT_EQ(failures.load(), 0);
+    EXPECT_EQ(index.get_node_count(), writers * inserts_per_writer);
+    const float *first_vector_ptr = index.get_vector_ptr(0);
+    const float first_value = first_vector_ptr[0];
+    const std::vector<float> extra_vector(dim, -1.0f);
+    index.insert_vector(extra_vector.data());
+    EXPECT_EQ(index.get_vector_ptr(0), first_vector_ptr);
+    EXPECT_EQ(first_vector_ptr[0], first_value);
+    EXPECT_FALSE(index.search_top_k(query.data(), 20, 5).empty());
+
+    std::atomic<bool> reading{true};
+    std::thread clear_reader([&] {
+        while (reading.load()) {
+            try {
+                const auto results = index.search_top_k(query.data(), 20, 5);
+                for (const auto &candidate : results)
+                    if (candidate.id < 0) ++failures;
+            } catch (...) {
+                ++failures;
+            }
+        }
+    });
+    index.clear();
+    reading = false;
+    clear_reader.join();
+
+    EXPECT_EQ(failures.load(), 0);
+    EXPECT_EQ(index.get_node_count(), 0);
+    EXPECT_EQ(index.get_entry_point(), -1);
+    EXPECT_TRUE(index.search_top_k(query.data(), 20, 5).empty());
 }
 
 // Probabilistic test: allow normal HNSW level generation

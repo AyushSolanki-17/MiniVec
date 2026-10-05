@@ -59,10 +59,15 @@ namespace minivec
     //   The id of the newly added node.
     int HNSWIndexSimple::add_node(const float *vec_vals, int layer)
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
+        return add_node_unlocked(vec_vals, layer);
+    }
+
+    int HNSWIndexSimple::add_node_unlocked(const float *vec_vals, int layer)
+    {
         int id = store.add(vec_vals);
 
-        // lock index structure while validating and mutating nodes vector and EP/max_layer
-        std::lock_guard<std::shared_mutex> idx_lock(index_mtx);
         // Check for valid id.
         if (id != static_cast<int>(nodes.size()))
         {
@@ -86,6 +91,12 @@ namespace minivec
     // Returns a pointer to the stored vector for the given node id.
     const float *HNSWIndexSimple::get_vector_ptr(int id) const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        return get_vector_ptr_unlocked(id);
+    }
+
+    const float *HNSWIndexSimple::get_vector_ptr_unlocked(int id) const
+    {
         throw_if_invalid_node_id(nodes, id, "get_vector_ptr");
         const float *p = store.ptr(id);
         if (!p)
@@ -100,6 +111,7 @@ namespace minivec
     // Returns the top layer of the node with the given id.
     int HNSWIndexSimple::get_layer(int id) const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         throw_if_invalid_node_id(nodes, id, "get_layer");
         return nodes[id]->get_layer();
     }
@@ -107,18 +119,21 @@ namespace minivec
     // Returns the current entry point id for the index.
     const int HNSWIndexSimple::get_entry_point() const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         return entry_point;
     }
 
     // Returns the current maximum layer in the index.
     int HNSWIndexSimple::get_max_layer() const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         return max_layer;
     }
 
     // Returns the number of nodes stored in the index.
     int HNSWIndexSimple::get_node_count() const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         return nodes.size();
     }
 
@@ -155,6 +170,13 @@ namespace minivec
     //   layer: Layer index where pruning is applied.
     void HNSWIndexSimple::prune_neighbours(int id, int layer)
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        prune_neighbours_unlocked(id, layer);
+    }
+
+    void HNSWIndexSimple::prune_neighbours_unlocked(int id, int layer)
+    {
         // Validate id
         throw_if_invalid_node_id(nodes, id, "prune_neighbours");
         std::vector<int> nbrs = nodes[id]->get_neighbors(layer);
@@ -165,10 +187,10 @@ namespace minivec
         // Build candidate list with distances to the node.
         std::vector<Candidate> candidates;
         candidates.reserve(nbrs.size());
-        const float *id_ptr = get_vector_ptr(id);
+        const float *id_ptr = get_vector_ptr_unlocked(id);
         for (int n : nbrs)
         {
-            float d = distance_func(id_ptr, get_vector_ptr(n), dim);
+            float d = distance_func(id_ptr, get_vector_ptr_unlocked(n), dim);
             candidates.push_back({n, d});
         }
 
@@ -190,7 +212,7 @@ namespace minivec
         for (int i = 0; i < pool && (int)selected.size() < max_neighbors; ++i)
         {
             const Candidate &c = candidates[i];
-            const float *c_ptr = get_vector_ptr(c.id);
+            const float *c_ptr = get_vector_ptr_unlocked(c.id);
 
             bool good = true;
 
@@ -260,13 +282,15 @@ namespace minivec
     //   The id of the inserted node.
     int HNSWIndexSimple::insert_vector(const float *vec_vals)
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
         int new_layer = layer_gen.getRandomLayer();
 
-        int id = add_node(vec_vals, new_layer);
+        int id;
         // Now size >= 2; start search from old_entry (not self).
         int current, local_max_layer;
         {
-            std::lock_guard<std::shared_mutex> idx_lock(index_mtx);
+            std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
+            id = add_node_unlocked(vec_vals, new_layer);
             if (static_cast<int>(nodes.size()) == 1)
             {
                 entry_point = id;
@@ -288,7 +312,7 @@ namespace minivec
         // Greedy descent on upper layers.
         for (int layer = local_max_layer; layer >= new_layer + 1; layer--)
         {
-            current = greedy_search_layer(vec_vals, current, layer);
+            current = greedy_search_layer_unlocked(vec_vals, current, layer, nullptr);
         }
 
         // Connect on layers from new_layer down to 0.
@@ -296,9 +320,9 @@ namespace minivec
         for (int layer = connect_start_layer; layer >= 0; layer--)
         {
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> neighbors_pq =
-                ef_search_layer(vec_vals, current, layer, efConstruction);
+                ef_search_layer_unlocked(vec_vals, current, layer, efConstruction, nullptr);
             const int max_neighbors = layer == 0 ? 2 * M : M;
-            std::vector<Candidate> neighbors = filter_top_k(vec_vals, neighbors_pq, max_neighbors, true);
+            std::vector<Candidate> neighbors = filter_top_k_unlocked(vec_vals, neighbors_pq, max_neighbors, true);
 
             for (const Candidate &neighbor : neighbors)
             {
@@ -333,7 +357,7 @@ namespace minivec
                 const int neighbor_limit = layer == 0 ? 2 * M : M;
                 if ((int)nbrs.size() > neighbor_limit)
                 {
-                    prune_neighbours(neighbor.id, layer);
+                    prune_neighbours_unlocked(neighbor.id, layer);
                 }
             }
             // Update starting point for next (lower) layer to closest found here.
@@ -344,7 +368,7 @@ namespace minivec
         }
         // Update entry point and max_layer if needed.
         {
-            std::lock_guard<std::shared_mutex> idx_lock(index_mtx);
+            std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
             if (new_layer > max_layer)
             {
                 max_layer = new_layer;
@@ -367,6 +391,12 @@ namespace minivec
     // Returns:
     //   Id of the closest node found on this layer.
     int HNSWIndexSimple::greedy_search_layer(const float *query, int entry_id, int layer, SearchStats *stats)
+    {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        return greedy_search_layer_unlocked(query, entry_id, layer, stats);
+    }
+
+    int HNSWIndexSimple::greedy_search_layer_unlocked(const float *query, int entry_id, int layer, SearchStats *stats)
     {
         throw_if_invalid_node_id(nodes, entry_id, "greedy_search_layer: entry_id");
         int n_nodes = static_cast<int>(nodes.size());
@@ -430,6 +460,13 @@ namespace minivec
     //   A max-heap (by distance) of Candidate objects representing the best nodes.
     std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
     HNSWIndexSimple::ef_search_layer(const float *query, int entry_id, int layer, int ef, SearchStats *stats)
+    {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        return ef_search_layer_unlocked(query, entry_id, layer, ef, stats);
+    }
+
+    std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
+    HNSWIndexSimple::ef_search_layer_unlocked(const float *query, int entry_id, int layer, int ef, SearchStats *stats)
     {
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> best_nodes;
         std::priority_queue<Candidate, std::vector<Candidate>, MinHeapCompare> candidates;
@@ -566,14 +603,14 @@ namespace minivec
         // Greedy search on upper layers.
         for (int layer = lower_max_layer; layer > 0; layer--)
         {
-            current = greedy_search_layer(query, current, layer, stats);
+            current = greedy_search_layer_unlocked(query, current, layer, stats);
         }
 
         // EF search on layer 0.
         int effective_ef = (ef > 0) ? ef : efSearch;
-        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer(query, current, 0, effective_ef, stats);
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer_unlocked(query, current, 0, effective_ef, stats);
 
-        return filter_top_k(query, candidates, k);
+        return filter_top_k_unlocked(query, candidates, k, false);
     }
 
     // Filters candidates to produce a top-k result set, optionally applying
@@ -589,6 +626,16 @@ namespace minivec
     // Returns:
     //   A vector of up to k candidates sorted by distance to the query.
     std::vector<Candidate> HNSWIndexSimple::filter_top_k(
+        const float *query,
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates_pq,
+        int k,
+        bool diversity)
+    {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        return filter_top_k_unlocked(query, candidates_pq, k, diversity);
+    }
+
+    std::vector<Candidate> HNSWIndexSimple::filter_top_k_unlocked(
         const float *query,
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates_pq,
         int k,
@@ -616,7 +663,7 @@ namespace minivec
             selected_ptrs.reserve(k);
             for (const Candidate &candidate : candidates)
             {
-                const float *candidate_ptr = get_vector_ptr(candidate.id);
+                const float *candidate_ptr = get_vector_ptr_unlocked(candidate.id);
                 bool diverse_enough = true;
                 for (const float *selected_ptr : selected_ptrs)
                 {
@@ -652,7 +699,7 @@ namespace minivec
 
         for (Candidate &c : top_k)
         {
-            c.distance = final_distance_func(query, get_vector_ptr(c.id), dim);
+            c.distance = final_distance_func(query, get_vector_ptr_unlocked(c.id), dim);
         }
 
         std::sort(top_k.begin(), top_k.end(),
@@ -667,6 +714,8 @@ namespace minivec
     // Clears all data from the index and resets state.
     void HNSWIndexSimple::clear()
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
         store.clear();
         nodes.clear();
         entry_point = -1;
@@ -676,22 +725,17 @@ namespace minivec
     // Thread-safe helper: copy neighbors for node node_id at given layer.
     std::vector<int> HNSWIndexSimple::get_neighbors_copy(int node_id, int layer) const
     {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         // Validate node id first
         throw_if_invalid_node_id(nodes, node_id, "get_neighbors_copy");
-
-        // Acquire shared lock on the node to allow concurrent readers.
-        std::shared_lock<std::shared_mutex> lock(nodes[node_id]->getMutex());
-
-        // Call node's getter while holding shared lock. We expect get_neighbors returns
-        // a copy (or a reference that we immediately copy); either way this is safe.
-
-        auto aip = nodes[node_id]->get_neighbors(layer);
-        return aip;
+        return nodes[node_id]->get_neighbors(layer);
     }
 
     // Symmetric link: add edge a->b and b->a safely without deadlock.
     void HNSWIndexSimple::link_nodes_symmetrically(int a, int b, int layer)
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         // Validate ids
         throw_if_invalid_node_id(nodes, a, "link_nodes_symmetrically: a");
         throw_if_invalid_node_id(nodes, b, "link_nodes_symmetrically: b");
@@ -717,6 +761,8 @@ namespace minivec
     // Symmetric unlink: remove edge a->b and b->a safely without deadlock.
     void HNSWIndexSimple::remove_link_symmetrically(int a, int b, int layer)
     {
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
         // Validate ids
         throw_if_invalid_node_id(nodes, a, "remove_link_symmetrically: a");
         throw_if_invalid_node_id(nodes, b, "remove_link_symmetrically: b");

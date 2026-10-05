@@ -8,22 +8,24 @@
 #pragma once
 
 #include <cassert>
+#include <deque>
 #include <vector>
 
 namespace minivec {
-// Stores fixed-dimensional vectors in a contiguous array.
+// Stores fixed-dimensional vectors in stable, independently contiguous blocks.
 //
 // Vectors are appended sequentially and addressed by an integer id in
-// [0, size()). Each vector has the same dimensionality `dim`.
+// [0, size()). Each vector has the same dimensionality `dim`; appending does
+// not invalidate pointers to vectors already stored.
 struct VecStore {
-  std::vector<float> data;
+  std::deque<std::vector<float>> data;
   int dim = 0;
 
   // Creates an empty store with vectors of dimension dim_.
   explicit VecStore(int dim_ = 0) : dim(dim_) {}
 
   // Returns the number of stored vectors.
-  inline int size() const { return dim == 0 ? 0 : static_cast<int>(data.size() / dim); }
+  inline int size() const { return static_cast<int>(data.size()); }
 
   // Adds a vector to the store.
   //
@@ -35,18 +37,18 @@ struct VecStore {
   inline int add(const float* vals) {
     assert(dim > 0);
     int id = size();
-    data.insert(data.end(), vals, vals + dim);
+    data.emplace_back(vals, vals + dim);
     return id;
   }
 
   // Returns a const pointer to the vector with the given id.
   inline const float* ptr(int id) const {
-    return data.data() + static_cast<size_t>(id) * dim;
+    return data[static_cast<size_t>(id)].data();
   }
 
   // Returns a mutable pointer to the vector with the given id.
   inline float* ptr_mut(int id) {
-    return data.data() + static_cast<size_t>(id) * dim;
+    return data[static_cast<size_t>(id)].data();
   }
 
   // Removes all stored vectors.

@@ -75,7 +75,8 @@ namespace minivec
         const std::vector<int> get_neighbors(int layer) const;
 
         // Visit neighbors while holding a shared lock, avoiding a per-hop
-        // adjacency snapshot allocation in search paths.
+        // adjacency snapshot allocation in search paths. The visitor must not
+        // mutate this node or re-enter a mutating node method.
         template <typename Visitor>
         void for_each_neighbor(int layer, Visitor &&visitor) const
         {

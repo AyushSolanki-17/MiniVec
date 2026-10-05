@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <shared_mutex>
+#include <mutex>
 
 #include <iostream>
 
@@ -69,6 +70,9 @@ namespace minivec
         // Mutex for thread safety.
         mutable std::shared_mutex index_mtx;
 
+        // Serializes graph mutations while allowing searches during insertion.
+        mutable std::mutex mutation_mtx;
+
         // All HNSW nodes (graph vertices) stored in a contiguous vector.
         // The index into this vector is the node ID and corresponds to the
         // same index in the VecStore.
@@ -79,6 +83,21 @@ namespace minivec
 
         // Distance function that returns final results or used for re-ranking.
         DistanceFunc final_distance_func;
+
+        // Caller must hold index_mtx exclusively.
+        int add_node_unlocked(const float *vec_vals, int layer);
+        // Caller must hold mutation_mtx; graph mutation is protected by node locks.
+        void prune_neighbours_unlocked(int id, int layer);
+        // Caller must hold index_mtx or mutation_mtx.
+        const float *get_vector_ptr_unlocked(int id) const;
+        int greedy_search_layer_unlocked(const float *query, int entry_id, int layer, SearchStats *stats);
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
+        ef_search_layer_unlocked(const float *query, int entry_id, int layer, int ef, SearchStats *stats);
+        std::vector<Candidate> filter_top_k_unlocked(
+            const float *query,
+            std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates,
+            int k,
+            bool diversity);
 
     public:
         // Constructs an HNSWIndexSimple with the given dimensionality and parameters.
@@ -106,6 +125,8 @@ namespace minivec
         int add_node(const float *vec_vals, int layer);
 
         // Returns a const pointer to the stored vector for the given node ID.
+        // The pointer remains valid across inserts and is invalidated by clear()
+        // or destruction of the index.
         //
         // Args:
         //   id: Node ID whose vector is requested.
