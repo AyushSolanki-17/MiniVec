@@ -14,8 +14,8 @@ TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
     minivec::HNSWNodeSimple node(7, 1, 4);
     node.add_neighbor(2, 0);
     node.add_neighbor(5, 0);
-    std::vector<int> visited;
-    node.for_each_neighbor(0, [&](int neighbor) { visited.push_back(neighbor); });
+    std::vector<minivec::NodeId> visited;
+    node.for_each_neighbor(0, [&](minivec::NodeId neighbor) { visited.push_back(neighbor); });
     EXPECT_EQ(visited, node.get_neighbors(0));
 }
 
@@ -25,17 +25,27 @@ TEST(HNSWTest, PackedNeighborLayersStayCorrectAcrossMutation) {
     node.add_neighbor(11, 0);
     node.add_neighbor(20, 1);
     node.add_neighbor(30, 2);
-    EXPECT_EQ(node.get_neighbors(0), (std::vector<int>{10, 11}));
-    EXPECT_EQ(node.get_neighbors(1), (std::vector<int>{20}));
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{10, 11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<minivec::NodeId>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
 
     EXPECT_TRUE(node.remove_neighbor(10, 0));
-    EXPECT_EQ(node.get_neighbors(0), (std::vector<int>{11}));
-    EXPECT_EQ(node.get_neighbors(1), (std::vector<int>{20}));
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<minivec::NodeId>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
     node.clear_layer(1);
     EXPECT_TRUE(node.get_neighbors(1).empty());
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
+}
+
+TEST(HNSWTest, NodeAndNeighborIdsPreserveValuesBeyondIntRange) {
+    const minivec::NodeId high_id = static_cast<minivec::NodeId>(std::numeric_limits<int>::max()) + 123;
+    minivec::HNSWNodeSimple node(high_id, 1, 4);
+    node.add_neighbor(high_id + 1, 0);
+    const minivec::Candidate candidate(high_id + 2, 0.5f);
+    EXPECT_EQ(node.get_id(), high_id);
+    EXPECT_EQ(candidate.id, high_id + 2);
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{high_id + 1}));
 }
 
 TEST(HNSWTest, DistanceMetricsHaveExpectedOrderingAndZeroVectorBehavior) {
@@ -57,6 +67,21 @@ TEST(HNSWTest, DistanceMetricsHaveExpectedOrderingAndZeroVectorBehavior) {
     EXPECT_EQ(result.front().id, 0);
 }
 
+TEST(HNSWTest, DispatchedSquaredL2MatchesScalarAcrossRemainders) {
+    std::mt19937 rng(44);
+    std::uniform_real_distribution<float> distribution(-3.0f, 3.0f);
+    std::vector<float> a(37), b(37);
+    for (size_t dim = 1; dim <= a.size(); ++dim) {
+        for (size_t i = 0; i < dim; ++i) {
+            a[i] = distribution(rng);
+            b[i] = distribution(rng);
+        }
+        EXPECT_NEAR(minivec::l2_squared_distance(a.data(), b.data(), static_cast<int>(dim)),
+                    minivec::l2_squared_scalar(a.data(), b.data(), static_cast<int>(dim)),
+                    1e-4f * static_cast<float>(dim));
+    }
+}
+
 //Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     constexpr int dim = 32;
@@ -68,7 +93,7 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
             index.insert_vector(v.data());
         }
         auto r = index.search_top_k(index.get_vector_ptr(10), 50, 5);
-        std::vector<int> ids;
+        std::vector<minivec::NodeId> ids;
         for (auto& c : r) ids.push_back(c.id);
         return ids;
     };
@@ -77,9 +102,9 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     minivec::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
 
     std::cout<<"Building index A..."<<std::endl;
-    std::vector<int> a1 = build(a);
+    std::vector<minivec::NodeId> a1 = build(a);
     std::cout<<"Building index B..."<<std::endl;
-    std::vector<int> b1 = build(b);
+    std::vector<minivec::NodeId> b1 = build(b);
 
     std::cout<<"Comparing results..."<<std::endl;
     std::cout<<"Index A results: ";
@@ -89,7 +114,7 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     for (auto id : b1) std::cout<<id<<" ";
     std::cout<<std::endl;
 
-    ASSERT_EQ(std::unordered_set<int>(a1.begin(), a1.end()),std::unordered_set<int>(b1.begin(), b1.end()));
+    ASSERT_EQ(std::unordered_set<minivec::NodeId>(a1.begin(), a1.end()),std::unordered_set<minivec::NodeId>(b1.begin(), b1.end()));
     for (int id = 0; id < a.get_node_count(); ++id) {
         EXPECT_EQ(a.get_layer(id), b.get_layer(id));
         EXPECT_EQ(a.get_neighbors_copy(id, 0), b.get_neighbors_copy(id, 0));
@@ -127,12 +152,12 @@ TEST(HNSWTest, LayerZeroKeepsTwoMNeighborsAndPruningDoesNotIsolateNodes) {
     EXPECT_TRUE(observed_more_than_M);
 
     std::vector<bool> reachable(count, false);
-    std::vector<int> pending{index.get_entry_point()};
+    std::vector<minivec::NodeId> pending{index.get_entry_point()};
     reachable[pending.front()] = true;
     while (!pending.empty()) {
         const int current = pending.back();
         pending.pop_back();
-        for (int neighbor : index.get_neighbors_copy(current, 0)) {
+        for (minivec::NodeId neighbor : index.get_neighbors_copy(current, 0)) {
             if (!reachable[neighbor]) {
                 reachable[neighbor] = true;
                 pending.push_back(neighbor);
@@ -150,19 +175,19 @@ TEST(HNSWTest, InsertNeighborSelectionRejectsRedundantCandidates) {
     const float upper[] = {0.0f, 1.3f};
     const float lower[] = {0.0f, -1.4f};
     const float query[] = {0.0f, 0.0f};
-    const int nearest_id = index.add_node(nearest, 0);
-    const int redundant_id = index.add_node(redundant, 0);
-    const int opposite_id = index.add_node(opposite, 0);
-    const int upper_id = index.add_node(upper, 0);
-    const int lower_id = index.add_node(lower, 0);
+    const minivec::NodeId nearest_id = index.add_node(nearest, 0);
+    const minivec::NodeId redundant_id = index.add_node(redundant, 0);
+    const minivec::NodeId opposite_id = index.add_node(opposite, 0);
+    const minivec::NodeId upper_id = index.add_node(upper, 0);
+    const minivec::NodeId lower_id = index.add_node(lower, 0);
     index.link_nodes_symmetrically(nearest_id, redundant_id, 0);
     index.link_nodes_symmetrically(nearest_id, opposite_id, 0);
     index.link_nodes_symmetrically(nearest_id, upper_id, 0);
     index.link_nodes_symmetrically(nearest_id, lower_id, 0);
 
-    const int inserted_id = index.insert_vector(query);
+    const minivec::NodeId inserted_id = index.insert_vector(query);
     const auto selected = index.get_neighbors_copy(inserted_id, 0);
-    const std::unordered_set<int> selected_ids(selected.begin(), selected.end());
+    const std::unordered_set<minivec::NodeId> selected_ids(selected.begin(), selected.end());
 
     EXPECT_EQ(selected.size(), 2 * index.get_M());
     EXPECT_TRUE(selected_ids.count(nearest_id));
@@ -179,10 +204,10 @@ TEST(HNSWTest, EfSearchRefreshesWorstDistanceForEachNeighbor) {
     const float first[] = {10.0f};
     const float second[] = {9.0f};
     const float third[] = {9.5f};
-    const int entry_id = index.add_node(entry, 0);
-    const int first_id = index.add_node(first, 0);
-    const int second_id = index.add_node(second, 0);
-    const int third_id = index.add_node(third, 0);
+    const minivec::NodeId entry_id = index.add_node(entry, 0);
+    const minivec::NodeId first_id = index.add_node(first, 0);
+    const minivec::NodeId second_id = index.add_node(second, 0);
+    const minivec::NodeId third_id = index.add_node(third, 0);
     index.link_nodes_symmetrically(entry_id, first_id, 0);
     index.link_nodes_symmetrically(entry_id, second_id, 0);
     index.link_nodes_symmetrically(entry_id, third_id, 0);
@@ -200,8 +225,8 @@ TEST(HNSWTest, SearchCountsUpperLayerGreedyHopsAndReusesVisitsSafely) {
     const float far[] = {5.0f};
     const float near[] = {1.0f};
     const float query[] = {0.0f};
-    const int far_id = index.add_node(far, 1);
-    const int near_id = index.add_node(near, 1);
+    const minivec::NodeId far_id = index.add_node(far, 1);
+    const minivec::NodeId near_id = index.add_node(near, 1);
     index.link_nodes_symmetrically(far_id, near_id, 1);
     index.link_nodes_symmetrically(far_id, near_id, 0);
 

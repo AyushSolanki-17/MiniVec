@@ -105,7 +105,7 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def("efSearch", &minivec::HNSWIndexSimple::get_efSearch)
 
         // -------- vector access --------
-        .def("get_vector", [](minivec::HNSWIndexSimple &index, int id)
+        .def("get_vector", [](minivec::HNSWIndexSimple &index, minivec::NodeId id)
              {
                  const float *ptr = index.get_vector_ptr(id);
                  int dim = index.get_vector_dim();

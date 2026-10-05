@@ -50,7 +50,7 @@ namespace minivec
         int max_layer;
 
         // ID of the current entry point node in the top layer of the graph.
-        int entry_point;
+        NodeId entry_point;
 
         // Dimensionality of all stored vectors.
         int dim;
@@ -85,14 +85,14 @@ namespace minivec
         DistanceMetric final_distance_func;
 
         // Caller must hold index_mtx exclusively.
-        int add_node_unlocked(const float *vec_vals, int layer);
+        NodeId add_node_unlocked(const float *vec_vals, int layer);
         // Caller must hold mutation_mtx; graph mutation is protected by node locks.
-        void prune_neighbours_unlocked(int id, int layer);
+        void prune_neighbours_unlocked(NodeId id, int layer);
         // Caller must hold index_mtx or mutation_mtx.
-        const float *get_vector_ptr_unlocked(int id) const;
-        int greedy_search_layer_unlocked(const float *query, int entry_id, int layer, SearchStats *stats);
+        const float *get_vector_ptr_unlocked(NodeId id) const;
+        NodeId greedy_search_layer_unlocked(const float *query, NodeId entry_id, int layer, SearchStats *stats);
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
-        ef_search_layer_unlocked(const float *query, int entry_id, int layer, int ef, SearchStats *stats);
+        ef_search_layer_unlocked(const float *query, NodeId entry_id, int layer, int ef, SearchStats *stats);
         std::vector<Candidate> filter_top_k_unlocked(
             const float *query,
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates,
@@ -121,8 +121,8 @@ namespace minivec
         //   layer: layer at which this node is created (0-based).
         //
         // Returns:
-        //   Integer ID of the newly added node (index into `nodes` and `store`).
-        int add_node(const float *vec_vals, int layer);
+        //   64-bit ID of the newly added node (index into `nodes` and `store`).
+        NodeId add_node(const float *vec_vals, int layer);
 
         // Returns a const pointer to the stored vector for the given node ID.
         // The pointer remains valid across inserts and is invalidated by clear()
@@ -134,7 +134,7 @@ namespace minivec
         // Returns:
         //   Pointer to a float array of length `dim` representing the stored
         //   vector, or nullptr if `id` is invalid.
-        const float *get_vector_ptr(int id) const;
+        const float *get_vector_ptr(NodeId id) const;
 
         // Returns the layer (maximum layer index) for a given node ID.
         //
@@ -143,13 +143,13 @@ namespace minivec
         //
         // Returns:
         //   The maximum layer index (0-based) on which this node exists.
-        int get_layer(int id) const;
+        int get_layer(NodeId id) const;
 
         // Returns the current entry point node ID used for top-layer search.
         //
         // Returns:
         //   Node ID of the entry point, or -1 if the index is empty.
-        const int get_entry_point() const;
+        NodeId get_entry_point() const;
 
         // Returns the current maximum layer index in the HNSW graph.
         //
@@ -158,11 +158,11 @@ namespace minivec
         //   at least one node.
         int get_max_layer() const;
 
-        // Returns the total number of nodes currently stored in the index.
+        // Returns the total number of nodes currently stored in the index as a 64-bit count.
         //
         // Returns:
-        //   Integer count of nodes.
-        int get_node_count() const;
+        //   64-bit count of nodes.
+        NodeId get_node_count() const;
 
         // Returns the dimensionality of all vectors in the index.
         //
@@ -203,7 +203,7 @@ namespace minivec
         // Args:
         //   id: Node ID whose neighbors are to be pruned.
         //   layer: Layer index where pruning should be applied.
-        void prune_neighbours(int id, int layer);
+        void prune_neighbours(NodeId id, int layer);
 
         // Performs ef-search on a specific layer starting from an entry node.
         //
@@ -218,7 +218,7 @@ namespace minivec
         //   A priority queue (max-heap) of Candidate objects ordered by
         //   CandidateCompareInverse.
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare>
-        ef_search_layer(const float *query, int entry_id, int layer, int ef, SearchStats* stats = nullptr);
+        ef_search_layer(const float *query, NodeId entry_id, int layer, int ef, SearchStats* stats = nullptr);
 
         // Performs greedy search on a specific layer starting from an entry node.
         //
@@ -230,7 +230,7 @@ namespace minivec
         //
         // Returns:
         //   Node ID of the closest node found on this layer using greedy descent.
-        int greedy_search_layer(const float *query, int entry_id, int layer, SearchStats *stats = nullptr);
+        NodeId greedy_search_layer(const float *query, NodeId entry_id, int layer, SearchStats *stats = nullptr);
 
         // Performs a top-k approximate nearest neighbor search.
         //
@@ -268,14 +268,14 @@ namespace minivec
 
         // Thread-safe helpers used by tests and internal utils.
         // Return a thread-safe copy of the neighbor list for node `node_id` at `layer`.
-        std::vector<int> get_neighbors_copy(int node_id, int layer) const;
+        std::vector<NodeId> get_neighbors_copy(NodeId node_id, int layer) const;
 
         // Link nodes `a` and `b` symmetrically at `layer` in a deadlock-safe way.
         // This locks nodes in id-order, then performs two add_neighbor calls.
-        void link_nodes_symmetrically(int a, int b, int layer);
+        void link_nodes_symmetrically(NodeId a, NodeId b, int layer);
 
         // Remove symmetric link between `a` and `b` at `layer` in a deadlock-safe way.
         // This locks nodes in id-order, then performs two remove_neighbor calls.
-        void remove_link_symmetrically(int a, int b, int layer);
+        void remove_link_symmetrically(NodeId a, NodeId b, int layer);
     };
 }

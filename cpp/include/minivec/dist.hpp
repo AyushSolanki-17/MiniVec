@@ -14,6 +14,14 @@
 #include <string>
 #include <stdexcept>
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
+#if defined(__x86_64__) && (defined(__clang__) || defined(__GNUC__))
+#include <immintrin.h>
+#endif
+
 namespace minivec
 {
     enum class DistanceMetric
@@ -65,6 +73,72 @@ namespace minivec
         return static_cast<float>(sum);
     }
 
+#if defined(__aarch64__)
+    inline float l2_squared_neon(const float *a, const float *b, int dim)
+    {
+        float32x4_t sum = vdupq_n_f32(0.0f);
+        int i = 0;
+        for (; i + 4 <= dim; i += 4)
+        {
+            const float32x4_t delta = vsubq_f32(vld1q_f32(a + i), vld1q_f32(b + i));
+            sum = vmlaq_f32(sum, delta, delta);
+        }
+        float result = vaddvq_f32(sum);
+        for (; i < dim; ++i)
+        {
+            const float delta = a[i] - b[i];
+            result += delta * delta;
+        }
+        return result;
+    }
+#endif
+
+#if defined(__x86_64__) && (defined(__clang__) || defined(__GNUC__))
+    __attribute__((target("avx2")))
+    inline float l2_squared_avx2(const float *a, const float *b, int dim)
+    {
+        __m256 sum = _mm256_setzero_ps();
+        int i = 0;
+        for (; i + 8 <= dim; i += 8)
+        {
+            const __m256 delta = _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i));
+            sum = _mm256_add_ps(sum, _mm256_mul_ps(delta, delta));
+        }
+        alignas(32) float lanes[8];
+        _mm256_store_ps(lanes, sum);
+        float result = 0.0f;
+        for (float lane : lanes) result += lane;
+        for (; i < dim; ++i)
+        {
+            const float delta = a[i] - b[i];
+            result += delta * delta;
+        }
+        return result;
+    }
+
+    __attribute__((target("avx512f")))
+    inline float l2_squared_avx512(const float *a, const float *b, int dim)
+    {
+        __m512 sum = _mm512_setzero_ps();
+        int i = 0;
+        for (; i + 16 <= dim; i += 16)
+        {
+            const __m512 delta = _mm512_sub_ps(_mm512_loadu_ps(a + i), _mm512_loadu_ps(b + i));
+            sum = _mm512_add_ps(sum, _mm512_mul_ps(delta, delta));
+        }
+        alignas(64) float lanes[16];
+        _mm512_store_ps(lanes, sum);
+        float result = 0.0f;
+        for (float lane : lanes) result += lane;
+        for (; i < dim; ++i)
+        {
+            const float delta = a[i] - b[i];
+            result += delta * delta;
+        }
+        return result;
+    }
+#endif
+
     // Computes the squared L2 distance between two float vectors.
     //
     // Thin wrapper around l2_squared_scalar for a user-facing name.
@@ -78,6 +152,20 @@ namespace minivec
     //   Squared L2 distance between a and b.
     inline float l2_squared_distance(const float *a, const float *b, int dim)
     {
+#if defined(__x86_64__) && (defined(__clang__) || defined(__GNUC__))
+        static const int cpu_vector_level = [] {
+            __builtin_cpu_init();
+            if (__builtin_cpu_supports("avx512f")) return 2;
+            if (__builtin_cpu_supports("avx2")) return 1;
+            return 0;
+        }();
+        if (cpu_vector_level == 2)
+            return l2_squared_avx512(a, b, dim);
+        if (cpu_vector_level == 1)
+            return l2_squared_avx2(a, b, dim);
+#elif defined(__aarch64__)
+        return l2_squared_neon(a, b, dim);
+#endif
         return l2_squared_scalar(a, b, dim);
     }
 

@@ -15,7 +15,7 @@ namespace minivec
 //   _id: Node identifier.
 //   layers: Total number of layers for this node (must be >= 1).
 //   M: Expected maximum number of neighbors per layer.
-HNSWNodeSimple::HNSWNodeSimple(int _id, int layers, int M)
+HNSWNodeSimple::HNSWNodeSimple(NodeId _id, int layers, int M)
     : id(_id), layer(layers > 0 ? layers - 1 : 0),
       layer_offsets(), layer_sizes()
 {
@@ -30,7 +30,7 @@ HNSWNodeSimple::HNSWNodeSimple(int _id, int layers, int M)
 }
 
 // Returns the node id.
-const int HNSWNodeSimple::get_id() const
+NodeId HNSWNodeSimple::get_id() const
 {
     return id;
 }
@@ -60,7 +60,7 @@ void HNSWNodeSimple::check_layer_bounds_or_throw(int t_layer) const
 //
 // Returns:
 //   Vector of neighbor ids.
-const std::vector<int> HNSWNodeSimple::get_neighbors(int t_layer) const
+const std::vector<NodeId> HNSWNodeSimple::get_neighbors(int t_layer) const
 {
     std::shared_lock lock(mtx);
     check_layer_bounds_or_throw(t_layer);
@@ -69,7 +69,7 @@ const std::vector<int> HNSWNodeSimple::get_neighbors(int t_layer) const
     return {neighbor_ids.begin() + begin, neighbor_ids.begin() + end};
 }
 
-bool HNSWNodeSimple::add_neighbor_nolock(int id, int layer, int *out_index)
+bool HNSWNodeSimple::add_neighbor_nolock(NodeId id, int layer, int *out_index)
 {
     // caller must have locked mtx(exclusive)
     check_layer_bounds_or_throw(layer);
@@ -88,7 +88,7 @@ bool HNSWNodeSimple::add_neighbor_nolock(int id, int layer, int *out_index)
     return true;
 }
 
-bool HNSWNodeSimple::remove_neighbor_nolock(int id, int layer)
+bool HNSWNodeSimple::remove_neighbor_nolock(NodeId id, int layer)
 {
     check_layer_bounds_or_throw(layer);
     const size_t begin = layer_offsets[layer];
@@ -111,7 +111,7 @@ bool HNSWNodeSimple::remove_neighbor_nolock(int id, int layer)
 //
 // Returns:
 //   Index at which the neighbor was inserted.
-bool HNSWNodeSimple::add_neighbor(int id, int layer, int *out_index)
+bool HNSWNodeSimple::add_neighbor(NodeId id, int layer, int *out_index)
 {
     check_layer_bounds_or_throw(layer);
     std::unique_lock lock(mtx);
@@ -126,7 +126,7 @@ bool HNSWNodeSimple::add_neighbor(int id, int layer, int *out_index)
 //
 // Returns:
 //   1 if the neighbor was removed, 0 if it was not found.
-bool HNSWNodeSimple::remove_neighbor(int id, int layer, bool preserve_order)
+bool HNSWNodeSimple::remove_neighbor(NodeId id, int layer, bool preserve_order)
 {
     check_layer_bounds_or_throw(layer);
     std::unique_lock lock(mtx);
@@ -165,7 +165,7 @@ bool HNSWNodeSimple::remove_neighbor(int id, int layer, bool preserve_order)
 //
 // Returns:
 //   True if the neighbor is present, false otherwise.
-bool HNSWNodeSimple::has_neighbor(int id, int layer) const {
+bool HNSWNodeSimple::has_neighbor(NodeId id, int layer) const {
   check_layer_bounds_or_throw(layer);
   std::shared_lock lock(mtx);
   const size_t begin = layer_offsets[layer];
