@@ -24,6 +24,7 @@ venv/
 build/
 build-debug/
 build-sanitize/
+!/scripts/build/
 dist/
 *.egg
 *.whl

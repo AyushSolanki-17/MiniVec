@@ -31,7 +31,7 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/AyushSolanki-17/MiniVec.git
-cd minivec
+cd MiniVec
 ````
 
 ---
@@ -50,21 +50,31 @@ cd minivec
 ### Build C++ Library
 
 ```bash
-mkdir build
-cd build
-cmake ..
-make -j
+./scripts/build/build.sh
 ```
 
 ---
 
-### Install Python Bindings
+### Run Python Tests
 
 ```bash
-pip install -e .
+PYTHONPATH=build:$PYTHONPATH python -m pytest
 ```
 
-This exposes the MiniVec index to Python.
+Build the extension with the same Python interpreter used to run tests. CMake creates `minivec_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests.
+
+## Repository layout
+
+```text
+cpp/                    C++ library, public headers, tests, and benchmarks
+minivec/                Python API wrapper
+tests/                  Python tests
+docs/                   Architecture and project documentation
+scripts/build/          Release, debug, test, benchmark, and Windows build entry points
+scripts/                Supporting development utilities
+```
+
+Build output stays in root-level `build*` directories and is not source code.
 
 ---
 
@@ -278,4 +288,3 @@ and by open-source implementations such as:
 * hnswlib
 
 MiniVec aims to provide a **minimal, transparent implementation for learning and experimentation**.
-
