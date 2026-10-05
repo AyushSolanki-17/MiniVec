@@ -16,16 +16,17 @@ namespace minivec
 //   layers: Total number of layers for this node (must be >= 1).
 //   M: Expected maximum number of neighbors per layer.
 HNSWNodeSimple::HNSWNodeSimple(int _id, int layers, int M)
-    : id(_id),  layer(layers > 0 ? layers - 1 : 0), neighbors()
+    : id(_id), layer(layers > 0 ? layers - 1 : 0),
+      layer_offsets(), layer_sizes()
 {
     if (layers < 1)
     {
         throw std::invalid_argument("HNSWNodeSimple: layers must be >= 1");
     }
-    // Allocate exactly `layers` adjacency lists: neighbors[0] .. neighbors[layers-1]
-    neighbors.resize(layers);
-    for (std::vector<int> &v : neighbors)
-        v.reserve(std::max(0, M + 2));
+    layer_offsets.resize(static_cast<size_t>(layers) + 1, 0);
+    layer_sizes.resize(static_cast<size_t>(layers), 0);
+    // Reserve the common base-layer degree; all layers share one packed buffer.
+    neighbor_ids.reserve(static_cast<size_t>(std::max(M, 0)) * 2 + 2);
 }
 
 // Returns the node id.
@@ -44,7 +45,7 @@ int HNSWNodeSimple::get_layer() const
 // Throws an exception if the given layer is out of bounds.
 void HNSWNodeSimple::check_layer_bounds_or_throw(int t_layer) const
 {
-    if (layer < 0 || t_layer > layer)
+    if (t_layer < 0 || layer < 0 || t_layer > layer)
     {
         std::ostringstream oss;
         oss << "HNSWNodeSimple: layer out of bounds: " << t_layer << " (layer=" << layer << ")";
@@ -61,43 +62,43 @@ void HNSWNodeSimple::check_layer_bounds_or_throw(int t_layer) const
 //   Vector of neighbor ids.
 const std::vector<int> HNSWNodeSimple::get_neighbors(int t_layer) const
 {
-    // check_layer_bounds_or_throw(layer);
     std::shared_lock lock(mtx);
-    if (t_layer < 0 || t_layer > layer) {
-        static const std::vector<int> EMPTY_VEC;
-        return {};
-  }
-  if (neighbors.size()==0)
-  {
-      static const std::vector<int> EMPTY_VEC;
-      return {};
-  }
-  
-  return neighbors[t_layer];
+    check_layer_bounds_or_throw(t_layer);
+    const size_t begin = layer_offsets[t_layer];
+    const size_t end = begin + layer_sizes[t_layer];
+    return {neighbor_ids.begin() + begin, neighbor_ids.begin() + end};
 }
 
 bool HNSWNodeSimple::add_neighbor_nolock(int id, int layer, int *out_index)
 {
     // caller must have locked mtx(exclusive)
     check_layer_bounds_or_throw(layer);
-    std::vector<int> &vec = neighbors[layer];
-    auto it = std::find(vec.begin(), vec.end(), id);
-    if (it != vec.end()) {
-        if (out_index) *out_index = static_cast<int>(it - vec.begin());
+    const size_t begin = layer_offsets[layer];
+    const size_t end = begin + layer_sizes[layer];
+    auto it = std::find(neighbor_ids.begin() + begin, neighbor_ids.begin() + end, id);
+    if (it != neighbor_ids.begin() + end) {
+        if (out_index) *out_index = static_cast<int>(it - (neighbor_ids.begin() + begin));
         return false;
     }
-    vec.push_back(id);
-    if (out_index) *out_index = static_cast<int>(vec.size()) - 1;
+    neighbor_ids.insert(neighbor_ids.begin() + end, id);
+    ++layer_sizes[layer];
+    for (size_t i = static_cast<size_t>(layer) + 1; i < layer_offsets.size(); ++i)
+        ++layer_offsets[i];
+    if (out_index) *out_index = static_cast<int>(layer_sizes[layer]) - 1;
     return true;
 }
 
 bool HNSWNodeSimple::remove_neighbor_nolock(int id, int layer)
 {
     check_layer_bounds_or_throw(layer);
-    std::vector<int> &vec = neighbors[layer];
-    auto it = std::find(vec.begin(), vec.end(), id);
-    if (it == vec.end()) return false;
-    vec.erase(it);
+    const size_t begin = layer_offsets[layer];
+    const size_t end = begin + layer_sizes[layer];
+    auto it = std::find(neighbor_ids.begin() + begin, neighbor_ids.begin() + end, id);
+    if (it == neighbor_ids.begin() + end) return false;
+    neighbor_ids.erase(it);
+    --layer_sizes[layer];
+    for (size_t i = static_cast<size_t>(layer) + 1; i < layer_offsets.size(); ++i)
+        --layer_offsets[i];
     return true;
 }
 
@@ -167,8 +168,9 @@ bool HNSWNodeSimple::remove_neighbor(int id, int layer, bool preserve_order)
 bool HNSWNodeSimple::has_neighbor(int id, int layer) const {
   check_layer_bounds_or_throw(layer);
   std::shared_lock lock(mtx);
-  const auto &vec = neighbors[layer];
-  return std::find(vec.begin(), vec.end(), id) != vec.end();
+  const size_t begin = layer_offsets[layer];
+  const size_t end = begin + layer_sizes[layer];
+  return std::find(neighbor_ids.begin() + begin, neighbor_ids.begin() + end, id) != neighbor_ids.begin() + end;
 }
 
 // Reserves capacity for the given layer.
@@ -179,7 +181,8 @@ bool HNSWNodeSimple::has_neighbor(int id, int layer) const {
 void HNSWNodeSimple::reserve_layer(int layer, size_t capacity) {
   check_layer_bounds_or_throw(layer);
   std::unique_lock lock(mtx);
-  neighbors[layer].reserve(capacity);
+  const size_t additional = capacity > layer_sizes[layer] ? capacity - layer_sizes[layer] : 0;
+  neighbor_ids.reserve(neighbor_ids.size() + additional);
 }
 
 // Clears the given layer.
@@ -189,6 +192,12 @@ void HNSWNodeSimple::reserve_layer(int layer, size_t capacity) {
 void HNSWNodeSimple::clear_layer(int layer) {
   check_layer_bounds_or_throw(layer);
   std::unique_lock lock(mtx);
-  neighbors[layer].clear();
+  const size_t begin = layer_offsets[layer];
+  const size_t end = begin + layer_sizes[layer];
+  neighbor_ids.erase(neighbor_ids.begin() + begin, neighbor_ids.begin() + end);
+  const size_t removed = layer_sizes[layer];
+  layer_sizes[layer] = 0;
+  for (size_t i = static_cast<size_t>(layer) + 1; i < layer_offsets.size(); ++i)
+      layer_offsets[i] -= removed;
 }
 }

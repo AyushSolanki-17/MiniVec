@@ -31,8 +31,11 @@ namespace minivec
         // A value of 0 means the node exists only on the base layer.
         int layer;
 
-        // Adjacency lists for each layer; neighbors[l] holds neighbor IDs at layer l.
-        std::vector<std::vector<int>> neighbors;
+        // Packed per-node adjacency with per-layer ranges to avoid one allocation
+        // per layer while keeping each layer's IDs contiguous.
+        std::vector<int> neighbor_ids;
+        std::vector<size_t> layer_offsets;
+        std::vector<size_t> layer_sizes;
 
         // Mutex for thread-safe access to the node.
         mutable std::shared_mutex mtx;
@@ -82,8 +85,10 @@ namespace minivec
         {
             std::shared_lock lock(mtx);
             check_layer_bounds_or_throw(layer);
-            for (int neighbor : neighbors[layer])
-                visitor(neighbor);
+            const size_t begin = layer_offsets[layer];
+            const size_t end = begin + layer_sizes[layer];
+            for (size_t i = begin; i < end; ++i)
+                visitor(neighbor_ids[i]);
         }
 
         // Returns the highest layer index of this node.

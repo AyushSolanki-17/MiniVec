@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <string>
+#include <limits>
 
 namespace minivec
 {
@@ -41,8 +42,8 @@ namespace minivec
           layer_gen(deterministic_levelgen ? minivec::HNSWLevelGenerator::from_M(M_, deterministic_levelgen, levelgen_seed) : minivec::HNSWLevelGenerator::from_M(M_)),
           efConstruction(efConstruction_),
           efSearch(efSearch_),
-          distance_func(get_distance_func(distance_func_name_)),
-          final_distance_func(get_distance_func(final_distance_func_name_))
+          distance_func(get_distance_metric(distance_func_name_)),
+          final_distance_func(get_distance_metric(final_distance_func_name_))
     {
     }
 
@@ -66,6 +67,8 @@ namespace minivec
 
     int HNSWIndexSimple::add_node_unlocked(const float *vec_vals, int layer)
     {
+        if (nodes.size() >= static_cast<size_t>(std::numeric_limits<int>::max()))
+            throw std::length_error("HNSWIndexSimple: int node ID capacity exhausted");
         int id = store.add(vec_vals);
 
         // Check for valid id.
@@ -190,7 +193,7 @@ namespace minivec
         const float *id_ptr = get_vector_ptr_unlocked(id);
         for (int n : nbrs)
         {
-            float d = distance_func(id_ptr, get_vector_ptr_unlocked(n), dim);
+            float d = compute_distance(distance_func, id_ptr, get_vector_ptr_unlocked(n), dim);
             candidates.push_back({n, d});
         }
 
@@ -218,7 +221,7 @@ namespace minivec
 
             for (size_t j = 0; j < selected_ptrs.size(); ++j)
             {
-                float ds = distance_func(c_ptr, selected_ptrs[j], dim);
+                float ds = compute_distance(distance_func, c_ptr, selected_ptrs[j], dim);
 
                 // HNSW diversity rule
                 if (ds < c.distance)
@@ -420,7 +423,7 @@ namespace minivec
             }
             // cache current pointer once
             const float *pv_curr = store.ptr(current);
-            float best_dist = distance_func(query, pv_curr, dim);
+            float best_dist = compute_distance(distance_func, query, pv_curr, dim);
             // Explore neighbors
             nodes[current]->for_each_neighbor(layer, [&](int neighbor) {
                 if (neighbor < 0 || neighbor >= n_nodes)
@@ -429,7 +432,7 @@ namespace minivec
                 if (!pv_curr || !pv_nei)
                     return;
 
-                float c_dist = distance_func(query, pv_nei, dim);
+                float c_dist = compute_distance(distance_func, query, pv_nei, dim);
                 // Check for improvement
                 if (c_dist < best_dist)
                 {
@@ -500,7 +503,7 @@ namespace minivec
         const uint32_t visit_epoch = workspace.current_epoch;
         // Initialize with entry point.
         int current = entry_id;
-        float curr_dist = distance_func(query, store.ptr(current), dim);
+        float curr_dist = compute_distance(distance_func, query, store.ptr(current), dim);
         candidates.emplace(current, curr_dist);
         best_nodes.emplace(current, curr_dist);
         workspace.epochs[current] = visit_epoch;
@@ -551,7 +554,7 @@ namespace minivec
                     const float *pv_nei = store.ptr(neighbor);
                     if (!pv_nei)
                         return;
-                    float dist = distance_func(query, pv_nei, dim);
+                    float dist = compute_distance(distance_func, query, pv_nei, dim);
                     if (stats)
                     {
                         stats->distance_calls++;
@@ -667,7 +670,7 @@ namespace minivec
                 bool diverse_enough = true;
                 for (const float *selected_ptr : selected_ptrs)
                 {
-                    if (distance_func(candidate_ptr, selected_ptr, dim) < candidate.distance)
+                    if (compute_distance(distance_func, candidate_ptr, selected_ptr, dim) < candidate.distance)
                     {
                         diverse_enough = false;
                         break;
@@ -699,7 +702,7 @@ namespace minivec
 
         for (Candidate &c : top_k)
         {
-            c.distance = final_distance_func(query, get_vector_ptr_unlocked(c.id), dim);
+            c.distance = compute_distance(final_distance_func, query, get_vector_ptr_unlocked(c.id), dim);
         }
 
         std::sort(top_k.begin(), top_k.end(),

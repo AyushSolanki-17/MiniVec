@@ -19,6 +19,44 @@ TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
     EXPECT_EQ(visited, node.get_neighbors(0));
 }
 
+TEST(HNSWTest, PackedNeighborLayersStayCorrectAcrossMutation) {
+    minivec::HNSWNodeSimple node(7, 3, 4);
+    node.add_neighbor(10, 0);
+    node.add_neighbor(11, 0);
+    node.add_neighbor(20, 1);
+    node.add_neighbor(30, 2);
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<int>{10, 11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<int>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+
+    EXPECT_TRUE(node.remove_neighbor(10, 0));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<int>{11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<int>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+    node.clear_layer(1);
+    EXPECT_TRUE(node.get_neighbors(1).empty());
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<int>{30}));
+}
+
+TEST(HNSWTest, DistanceMetricsHaveExpectedOrderingAndZeroVectorBehavior) {
+    const float x[] = {1.0f, 0.0f};
+    const float orthogonal[] = {0.0f, 1.0f};
+    const float opposite[] = {-1.0f, 0.0f};
+    const float zero[] = {0.0f, 0.0f};
+    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::L2Squared, x, orthogonal, 2), 2.0f);
+    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, orthogonal, 2), 1.0f);
+    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, opposite, 2), 2.0f);
+    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, zero, 2), 1.0f);
+    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::InnerProduct, x, opposite, 2), 1.0f);
+
+    minivec::HNSWIndexSimple index(2, 2, 10, 10, true, 9, "cosine", "cosine");
+    index.insert_vector(x);
+    index.insert_vector(orthogonal);
+    const auto result = index.search_top_k(x, 10, 2);
+    ASSERT_EQ(result.size(), 2u);
+    EXPECT_EQ(result.front().id, 0);
+}
+
 //Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     constexpr int dim = 32;

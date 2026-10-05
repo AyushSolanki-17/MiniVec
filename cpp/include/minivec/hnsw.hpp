@@ -79,10 +79,10 @@ namespace minivec
         std::vector<std::unique_ptr<HNSWNodeSimple>> nodes;
 
         // Distance function used to compute distances between vectors.
-        DistanceFunc distance_func;
+        DistanceMetric distance_func;
 
         // Distance function that returns final results or used for re-ranking.
-        DistanceFunc final_distance_func;
+        DistanceMetric final_distance_func;
 
         // Caller must hold index_mtx exclusively.
         int add_node_unlocked(const float *vec_vals, int layer);
