@@ -74,6 +74,17 @@ namespace minivec
         //   Const reference to the vector of neighbor node IDs at the given layer.
         const std::vector<int> get_neighbors(int layer) const;
 
+        // Visit neighbors while holding a shared lock, avoiding a per-hop
+        // adjacency snapshot allocation in search paths.
+        template <typename Visitor>
+        void for_each_neighbor(int layer, Visitor &&visitor) const
+        {
+            std::shared_lock lock(mtx);
+            check_layer_bounds_or_throw(layer);
+            for (int neighbor : neighbors[layer])
+                visitor(neighbor);
+        }
+
         // Returns the highest layer index of this node.
         //
         // Returns:

@@ -392,14 +392,12 @@ namespace minivec
             const float *pv_curr = store.ptr(current);
             float best_dist = distance_func(query, pv_curr, dim);
             // Explore neighbors
-            std::vector<int> nbrs = nodes[current]->get_neighbors(layer);
-            for (int neighbor : nbrs)
-            {
+            nodes[current]->for_each_neighbor(layer, [&](int neighbor) {
                 if (neighbor < 0 || neighbor >= n_nodes)
-                    continue;
+                    return;
                 const float *pv_nei = store.ptr(neighbor);
                 if (!pv_curr || !pv_nei)
-                    continue;
+                    return;
 
                 float c_dist = distance_func(query, pv_nei, dim);
                 // Check for improvement
@@ -412,7 +410,7 @@ namespace minivec
                     if (stats)
                         ++stats->greedy_hops;
                 }
-            }
+            });
         }
         return current;
     }
@@ -500,12 +498,9 @@ namespace minivec
                 std::cerr << "[ERR] ef_search_layer: nodes[" << current << "] is nullptr; skipping\n";
                 continue;
             }
-            std::vector<int> nbrs = nodes[current]->get_neighbors(layer);
-
-            for (int neighbor : nbrs)
-            {
+            nodes[current]->for_each_neighbor(layer, [&](int neighbor) {
                 if (neighbor < 0 || neighbor >= n_nodes)
-                    continue;
+                    return;
                 if (workspace.epochs[neighbor] != visit_epoch)
                 {
                     workspace.epochs[neighbor] = visit_epoch;
@@ -518,7 +513,7 @@ namespace minivec
                     // Compute distance to neighbor
                     const float *pv_nei = store.ptr(neighbor);
                     if (!pv_nei)
-                        continue;
+                        return;
                     float dist = distance_func(query, pv_nei, dim);
                     if (stats)
                     {
@@ -542,7 +537,7 @@ namespace minivec
                         worst_best_distance = best_nodes.top().distance;
                     }
                 }
-            }
+            });
         }
         return best_nodes;
     }

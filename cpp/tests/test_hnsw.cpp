@@ -8,6 +8,15 @@
 #include <unordered_set>
 #include <unordered_map>
 
+TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
+    minivec::HNSWNodeSimple node(7, 1, 4);
+    node.add_neighbor(2, 0);
+    node.add_neighbor(5, 0);
+    std::vector<int> visited;
+    node.for_each_neighbor(0, [&](int neighbor) { visited.push_back(neighbor); });
+    EXPECT_EQ(visited, node.get_neighbors(0));
+}
+
 //Deterministic test: insert at level 0 to avoid randomness
 TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     constexpr int dim = 32;
