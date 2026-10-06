@@ -50,6 +50,7 @@ class HNSWIndexSimple:
 
     # -------- insertion --------
     def insert_vector(self, vector: np.ndarray) -> int: ...
+    def insert_vectors(self, vectors: np.ndarray) -> List[int]: ...
 
     # -------- search --------
     def search(
@@ -64,8 +65,9 @@ class HNSWIndexSimple:
         k: int,
     ) -> Tuple[List[Tuple[int, float]], Dict[str, int]]: ...
 
-    # -------- uncertainty control --------
-    def set_beta(self, beta: float) -> None: ...
+    def search_batch(
+        self, queries: np.ndarray, k: int
+    ) -> List[List[Tuple[int, float]]]: ...
 
     # -------- getters --------
     def node_count(self) -> int: ...

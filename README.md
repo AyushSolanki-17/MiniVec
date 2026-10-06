@@ -1,11 +1,12 @@
 # MiniVec
 
-**A research-oriented, high-performance C++ vector search engine with Python bindings**
+**A research-oriented C++ vector search implementation with Python bindings**
 
 ![C++](https://img.shields.io/badge/C++-17-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3-blue.svg)
 ![Build](https://img.shields.io/badge/Build-CMake-success.svg)
+
+**Status: pre-alpha.** APIs and performance characteristics may change.
 
 ---
 
@@ -29,8 +30,8 @@ The goal of this project is not to replace FAISS or hnswlib, but to provide a **
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/minivec
-cd minivec
+git clone https://github.com/AyushSolanki-17/MiniVec.git
+cd MiniVec
 ````
 
 ---
@@ -40,30 +41,50 @@ cd minivec
 ### Requirements
 
 * C++17 compiler (GCC / Clang)
-* CMake ≥ 3.16
-* Python ≥ 3.11 (optional for bindings)
-* pybind11
+* CMake ≥ 3.18
+* Python 3 with development headers and pybind11 when `MINIVEC_BUILD_PYTHON=ON` (the default)
+* GoogleTest and Google Benchmark when their build options are enabled (both default to `ON`)
 
 ---
 
 ### Build C++ Library
 
 ```bash
-mkdir build
-cd build
-cmake ..
-make -j
+./scripts/build/build.sh
+```
+
+To build only the C++ library without Python, test, or benchmark dependencies:
+
+```bash
+cmake -S cpp -B build/cpp-core \
+  -DMINIVEC_BUILD_PYTHON=OFF \
+  -DMINIVEC_BUILD_TESTS=OFF \
+  -DMINIVEC_BUILD_BENCHMARKS=OFF
+cmake --build build/cpp-core
 ```
 
 ---
 
-### Install Python Bindings
+### Run Python Tests
 
 ```bash
-pip install -e .
+PYTHONPATH=build:$PYTHONPATH python -m pytest
 ```
 
-This exposes the MiniVec index to Python.
+Build the extension with the same Python interpreter used to run tests. CMake creates `minivec_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests.
+
+## Repository layout
+
+```text
+cpp/                    C++ library, public headers, tests, and benchmarks
+minivec/                Python API wrapper
+tests/                  Python tests
+docs/                   Architecture and project documentation
+scripts/build/          Release, debug, test, benchmark, and Windows build entry points
+scripts/                Supporting development utilities
+```
+
+Build output stays in root-level `build*` directories and is not source code.
 
 ---
 
@@ -94,7 +115,7 @@ Query Vector
    → Top-K Nearest Neighbors
 ```
 
-The algorithm follows the **standard HNSW design**, maintaining a **multi-layer proximity graph** that enables logarithmic search complexity.
+The implementation uses a multi-layer proximity graph inspired by HNSW. Search cost depends on graph structure, parameters, and data; this repository does not claim logarithmic scaling.
 
 ---
 
@@ -106,7 +127,7 @@ The algorithm follows the **standard HNSW design**, maintaining a **multi-layer 
 * 🧠 **Full HNSW implementation from first principles**
 * 🔧 Configurable parameters:
 
-  * `M` — maximum neighbors per node
+  * `M` — maximum neighbors per upper-layer node (layer 0 allows up to `2M`)
   * `efConstruction` — graph build search width
   * `efSearch` — query search width
 
@@ -127,7 +148,7 @@ The algorithm follows the **standard HNSW design**, maintaining a **multi-layer 
 
 * 📦 **CMake-based build system**
 
-* 🐍 **Zero-copy Python bindings via pybind11**
+* 🐍 **NumPy-based Python bindings via pybind11**, including batch insert and search
 
 ---
 
@@ -148,14 +169,14 @@ Everything is measurable and observable.
 
 ## 🔁 Deterministic Graph Construction
 
-MiniVec supports **deterministic index builds**.
+The C++ index supports deterministic serial builds when deterministic level generation is enabled and a seed is supplied.
 
-When enabled:
+With that configuration:
 
 * layer assignment is seeded
-* insertion order is preserved
+* inserting vectors in the same order preserves that order
 * graph structure becomes reproducible
-* search results are deterministic
+* repeated serial builds with the same seed and insertion order produce the same graph
 
 This is useful for:
 
@@ -182,48 +203,16 @@ These statistics enable:
 
 * recall vs latency analysis
 * algorithm debugging
-* performance comparisons against FAISS / hnswlib
+* performance comparisons when paired with reproducible benchmarks
 * tuning search parameters
 
-Instrumentation is available in **C++** and can be exposed through **Python bindings**.
+Instrumentation is available in **C++** and through the Python `search_with_stats` method.
 
 ---
 
-## 📈 Benchmarking Results
+## 📈 Benchmarking
 
-MiniVec was evaluated on synthetic and large-scale datasets.
-
-Configuration:
-
-| Parameter      | Value            |
-| -------------- | ---------------- |
-| Dimensionality | 128              |
-| Distance       | L2               |
-| Dataset sizes  | 10K / 1M vectors |
-
-Hardware: modern x86 CPU
-
----
-
-### Small Dataset (10K vectors)
-
-| Configuration      | Recall@10 | P50 Latency |
-| ------------------ | --------- | ----------- |
-| M=32 efSearch=100  | ≈ 0.90    | ≈ 0.18 ms   |
-| Brute Force Search | 1.00      | ≈ 0.36 ms   |
-
----
-
-### Large Dataset (1M vectors)
-
-| Configuration              | Recall@10 | P50 Latency |
-| -------------------------- | --------- | ----------- |
-| HNSW (M=32 tuned efSearch) | 0.89      | 11.7 ms     |
-| Brute Force                | 1.00      | ~30 ms      |
-
-Performance scales **logarithmically with dataset size**, consistent with theoretical HNSW expectations.
-
-Results are comparable to default FAISS HNSW configurations.
+No reproducible benchmark results are currently published. The benchmark target is in `cpp/benchmarks/`; compare results only after recording dataset, parameters, hardware, build options, and baseline implementation.
 
 ---
 
@@ -233,32 +222,38 @@ Example usage from Python:
 
 ```python
 import minivec
+import numpy as np
 
-index = minivec.HNSWIndex(
+vectors = np.random.default_rng(42).normal(size=(100, 128)).astype(np.float32)
+query = vectors[0]
+queries = vectors[:5]
+
+index = minivec.MiniVecIndex(
     dim=128,
     M=32,
     ef_construction=200,
     ef_search=100
 )
 
-index.add(vectors)
+ids = index.add_many(vectors)
+results = index.search(query, k=10)
+batch_results = index.search_many(queries, k=10)
 
-results, stats = index.search(query, k=10, return_stats=True)
+results, stats = index.search_with_stats(query, k=10)
 ```
 
 ---
 
 ## 📂 Project Structure
 
-```
-minivec/
-├── include/        # HNSW graph data structures
-├── src/            # core algorithm implementation
-├── python/         # pybind11 bindings
-├── benchmarks/     # performance experiments
-├── tests/          # deterministic & correctness tests
-├── examples/       # minimal usage examples
-└── docs/           # algorithm documentation
+The source tree is organized as follows:
+
+```text
+cpp/          C++ library, headers, tests, and benchmarks
+minivec/      Python API wrapper
+tests/        Python tests
+docs/         Architecture and project documentation
+scripts/      Build and development scripts
 ```
 
 ---
@@ -285,15 +280,8 @@ Planned improvements:
 * adaptive `efSearch`
 * memory-mapped indices
 * deletion and update support
-* SIMD distance optimizations
 * GPU search backend
 * research experiments on deterministic vs stochastic graph builds
-
----
-
-## 📜 License
-
-MIT License
 
 ---
 
@@ -310,4 +298,3 @@ and by open-source implementations such as:
 * hnswlib
 
 MiniVec aims to provide a **minimal, transparent implementation for learning and experimentation**.
-

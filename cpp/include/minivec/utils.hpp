@@ -7,39 +7,47 @@
  */
 #pragma once
 #include "hnsw_node.hpp"
-#include <iostream>
+#include <cstdint>
+#include <memory>
+#include <queue>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 namespace minivec
 {
 // Represents a search or graph candidate with an identifier and distance.
 struct Candidate
 {
-  int id;
+  NodeId id;
   float distance;
 
-  Candidate(int i, float d) : id(i), distance(d) {}
+  Candidate(NodeId i, float d) : id(i), distance(d) {}
 };
 
-// Centralized check helper — throws std::out_of_range for invalid node ids.
-inline void throw_if_invalid_node_id(const std::vector<std::unique_ptr<HNSWNodeSimple>> &nodes, int id, const char *context)
+inline bool candidate_distance_less(const Candidate &a, const Candidate &b)
 {
-  if (id < 0 || id >= static_cast<int>(nodes.size()))
+  return a.distance < b.distance;
+}
+
+// Centralized check helper — throws std::out_of_range for invalid node ids.
+inline void throw_if_invalid_node_id(const std::vector<std::unique_ptr<HNSWNodeSimple>> &nodes, NodeId id, const char *context)
+{
+  if (id < 0 || static_cast<std::uint64_t>(id) >= nodes.size())
   {
     std::ostringstream oss;
     oss << context << ": invalid node id " << id << " (nodes.size()=" << nodes.size() << ")";
     throw std::out_of_range(oss.str());
   }
-  if (!nodes[id])
+  if (!nodes[static_cast<std::size_t>(id)])
   {
     std::ostringstream oss;
     oss << context << ": nodes[" << id << "] is nullptr (possible allocation error or moved-out node)";
     throw std::runtime_error(oss.str());
   }
 }
-struct MaxHeapCompare { bool operator()(const Candidate&a,const Candidate&b) const { return a.distance < b.distance; } };
-struct MinHeapCompare { bool operator()(const Candidate&a,const Candidate&b) const { return a.distance > b.distance; } };
+struct MaxHeapCompare { bool operator()(const Candidate &a, const Candidate &b) const { return candidate_distance_less(a, b); } };
+struct MinHeapCompare { bool operator()(const Candidate &a, const Candidate &b) const { return candidate_distance_less(b, a); } };
 }
 // // | " << __FILE__ << ":" << __LINE__ << "
 // #define LOG(message)                              \

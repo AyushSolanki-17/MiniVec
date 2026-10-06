@@ -148,18 +148,25 @@ class MiniVecIndex:
         results, stats = self._index.search_with_stats(q, k)
         return results, dict(stats)
 
-    # ------------------------------------------------------------------
-    # Uncertainty control (research feature)
-    # ------------------------------------------------------------------
+    def add_many(self, vectors: np.ndarray) -> List[int]:
+        """Insert a 2D array of vectors and return their assigned IDs."""
+        matrix = np.asarray(vectors, dtype=np.float32)
+        if matrix.ndim != 2 or matrix.shape[1] != self.dim:
+            raise ValueError(
+                f"Expected vectors with shape (n, {self.dim}), got {matrix.shape}"
+            )
+        return list(self._index.insert_vectors(matrix))
 
-    def set_beta(self, beta: float) -> None:
-        """
-        Set uncertainty scaling parameter.
-
-        beta = 0.0  → standard HNSW behavior
-        beta > 0.0  → uncertainty-aware pruning/search
-        """
-        self._index.set_beta(float(beta))
+    def search_many(
+        self, queries: np.ndarray, k: int
+    ) -> List[List[Tuple[int, float]]]:
+        """Search a 2D array of queries and return one top-k list per row."""
+        matrix = np.asarray(queries, dtype=np.float32)
+        if matrix.ndim != 2 or matrix.shape[1] != self.dim:
+            raise ValueError(
+                f"Expected queries with shape (n, {self.dim}), got {matrix.shape}"
+            )
+        return self._index.search_batch(matrix, k)
 
     # ------------------------------------------------------------------
     # Introspection

@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 
 namespace minivec
 {
@@ -30,7 +31,7 @@ namespace minivec
     explicit HNSWLevelGenerator(double p,
                                 double eps = 1e-6,
                                 std::optional<uint32_t> seed = std::nullopt)
-        : p_(p), eps_(eps), seed_(seed)
+        : p_(p), eps_(eps), rng_(make_rng(seed)), initial_rng_(rng_)
     {
       if (!(p_ > 0.0 && p_ <= 1.0))
       {
@@ -72,15 +73,21 @@ namespace minivec
     int getRandomLayer() const
     {
       std::uniform_real_distribution<double> uniform(0.0, 1.0);
-      auto &rng = get_thread_rng();
+      std::lock_guard<std::mutex> lock(rng_mutex_);
 
       int level = 0;
       // Continue to next level with probability p_ (small).
-      while (level < max_level_ && uniform(rng) < p_)
+      while (level < max_level_ && uniform(rng_) < p_)
       {
         ++level;
       }
       return level;
+    }
+
+    void reset()
+    {
+      std::lock_guard<std::mutex> lock(rng_mutex_);
+      rng_ = initial_rng_;
     }
 
     double p() const noexcept { return p_; }
@@ -91,54 +98,41 @@ namespace minivec
     double p_;
     double eps_;
     int max_level_{0};
-    std::optional<uint32_t> seed_;
+    // Keep RNG state with this generator so each index honors its own seed.
+    mutable std::mt19937 rng_;
+    std::mt19937 initial_rng_;
+    mutable std::mutex rng_mutex_;
+
+    static std::mt19937 make_rng(std::optional<uint32_t> seed)
+    {
+      if (seed.has_value())
+        return std::mt19937(seed.value());
+      std::random_device rd;
+      std::seed_seq seq{rd(), rd(), rd(), rd()};
+      return std::mt19937(seq);
+    }
 
     // Compute max_level such that p_^max_level <= eps => max_level >= log(eps)/log(p_)
     void compute_max_level()
     {
+      constexpr int HARD_CAP = 64;
       if (p_ >= 1.0)
       {
-        max_level_ = 0;
+        max_level_ = HARD_CAP;
         return;
       }
       // Solve p_^L <= eps  ->  L * log(p) <= log(eps)  (both logs are negative)
       double raw = std::log(eps_) / std::log(p_);
+      if (!std::isfinite(raw) || raw >= HARD_CAP)
+      {
+        max_level_ = HARD_CAP;
+        return;
+      }
       int cap = static_cast<int>(std::ceil(raw));
       if (cap < 1)
         cap = 1;
-      constexpr int HARD_CAP = 64;
-      if (cap > HARD_CAP)
-        cap = HARD_CAP;
       max_level_ = cap;
     }
 
-    // Thread-local RNG with optional deterministic seeding.
-    std::mt19937 &get_thread_rng() const
-    {
-      // Initialize RNG with non-deterministic seed by default.
-      thread_local std::mt19937 rng = []()
-      {
-        std::random_device rd;
-        std::seed_seq seq{rd(), rd(), rd(), rd()};
-        return std::mt19937{seq};
-      }();
-
-      // If a deterministic seed was provided, mix it into the thread RNG once.
-      thread_local bool seeded = false;
-      if (!seeded && seed_.has_value())
-      {
-        uintptr_t tid = reinterpret_cast<uintptr_t>(&rng);
-        std::seed_seq seq{seed_.value(),
-                          static_cast<uint32_t>(tid & 0xffffffffu),
-                          static_cast<uint32_t>((tid >> 32) & 0xffffffffu)};
-        rng.seed(seq);
-        seeded = true;
-      }
-      else if (!seeded)
-      {
-        seeded = true;
-      }
-      return rng;
-    }
   };
 } // namespace minivec

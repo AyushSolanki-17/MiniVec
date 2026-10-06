@@ -13,26 +13,32 @@
 #include <shared_mutex>
 #include <optional>
 #include <limits>
+#include <cstdint>
+#include <cstddef>
 
 namespace minivec
 {
+    using NodeId = std::int64_t;
     // Simple HNSW node representation used by the MiniVec HNSW engine.
     //
-    // Each node has an integer id, a highest layer index, and per-layer neighbor
+    // Each node has a 64-bit id, a highest layer index, and per-layer neighbor
     // lists. This type is intentionally minimal and relies only on standard
     // containers.
     struct HNSWNodeSimple
     {
     private:
         // Unique identifier of the node within the index.
-        int id;
+        NodeId id;
 
         // Highest layer (0-based) on which this node exists.
         // A value of 0 means the node exists only on the base layer.
         int layer;
 
-        // Adjacency lists for each layer; neighbors[l] holds neighbor IDs at layer l.
-        std::vector<std::vector<int>> neighbors;
+        // Packed per-node adjacency with per-layer ranges to avoid one allocation
+        // per layer while keeping each layer's IDs contiguous.
+        std::vector<NodeId> neighbor_ids;
+        std::vector<size_t> layer_offsets;
+        std::vector<size_t> layer_sizes;
 
         // Mutex for thread-safe access to the node.
         mutable std::shared_mutex mtx;
@@ -46,10 +52,10 @@ namespace minivec
         // list is created and may reserve up to M neighbors.
         //
         // Args:
-        //   _id: Integer identifier of this node (default -1 for placeholder).
+        //   _id: 64-bit identifier of this node (default -1 for placeholder).
         //   layers: Number of layers for this node (must be >= 1).
         //   M: Expected maximum number of neighbors per layer (for reserve).
-        HNSWNodeSimple(int _id = -1, int layers = 1, int M = 16);
+        HNSWNodeSimple(NodeId _id = -1, int layers = 1, int M = 16);
 
         // Disable copy to avoid accidental expensive shallow copies.
         HNSWNodeSimple(const HNSWNodeSimple &) = delete;
@@ -57,11 +63,11 @@ namespace minivec
         HNSWNodeSimple(HNSWNodeSimple &&) noexcept = delete;
         HNSWNodeSimple &operator=(HNSWNodeSimple &&) noexcept = delete;
 
-        // Returns the unique identifier of this node.
+        // Returns the unique 64-bit identifier of this node.
         //
         // Returns:
-        //   Integer ID associated with this node.
-        const int get_id() const;
+        //   64-bit ID associated with this node.
+        NodeId get_id() const;
 
         // Returns the neighbor list for a specific layer.
         //
@@ -71,8 +77,22 @@ namespace minivec
         //   layer: Zero-based index of the layer.
         //
         // Returns:
-        //   Const reference to the vector of neighbor node IDs at the given layer.
-        const std::vector<int> get_neighbors(int layer) const;
+        //   Thread-safe copy of neighbor IDs at the given layer.
+        std::vector<NodeId> get_neighbors(int layer) const;
+
+        // Visit neighbors while holding a shared lock, avoiding a per-hop
+        // adjacency snapshot allocation in search paths. The visitor must not
+        // mutate this node or re-enter a mutating node method.
+        template <typename Visitor>
+        void for_each_neighbor(int layer, Visitor &&visitor) const
+        {
+            std::shared_lock lock(mtx);
+            check_layer_bounds_or_throw(layer);
+            const size_t begin = layer_offsets[layer];
+            const size_t end = begin + layer_sizes[layer];
+            for (size_t i = begin; i < end; ++i)
+                visitor(neighbor_ids[i]);
+        }
 
         // Returns the highest layer index of this node.
         //
@@ -92,19 +112,19 @@ namespace minivec
         //
         // Returns:
         //   Implementation-defined status code.
-        bool add_neighbor(int id, int layer, int *out_index = nullptr);
+        bool add_neighbor(NodeId id, int layer, int *out_index = nullptr);
 
         // Removes a neighbor from the specified layer, if present.
         //
         // Args:
         //   id: Identifier of the neighbor to remove.
         //   layer: Zero-based layer index from which the neighbor is removed.
-        //   preserve_order: If true, the neighbor will be swapped with the last
-        //     neighbor and then removed.
+        //   preserve_order: If true, remaining neighbors retain their order;
+        //     otherwise the last neighbor takes the removed neighbor's position.
         //
         // Returns:
         //   Implementation-defined status code.
-        bool remove_neighbor(int id, int layer, bool preserve_order = false);
+        bool remove_neighbor(NodeId id, int layer, bool preserve_order = false);
 
         // Returns whether given neighbor exists in the layer.
         //
@@ -114,7 +134,7 @@ namespace minivec
         //
         // Returns:
         //   True if the neighbor exists, false otherwise.
-        bool has_neighbor(int id, int layer) const;
+        bool has_neighbor(NodeId id, int layer) const;
 
         // Reserves capacity for the given layer.
         //
@@ -135,7 +155,7 @@ namespace minivec
         std::shared_mutex &getMutex() const { return mtx; }
 
         // internal: caller must hold exclusive lock on mtx
-        bool add_neighbor_nolock(int id, int layer, int *out_index = nullptr);
-        bool remove_neighbor_nolock(int id, int layer);
+        bool add_neighbor_nolock(NodeId id, int layer, int *out_index = nullptr);
+        bool remove_neighbor_nolock(NodeId id, int layer, bool preserve_order = true);
     };
 } // namespace minivec

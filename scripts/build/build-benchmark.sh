@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-ROOT_DIR="$(pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # ============================================================
 # 1. Release build (benchmarks + tests)
 # ============================================================
 echo "==================== RELEASE BUILD ===================="
 
-mkdir -p build
-cd build
-
-cmake ../cpp \
+cmake -S "${ROOT_DIR}/cpp" -B "${ROOT_DIR}/build" \
   -DCMAKE_BUILD_TYPE=Release
-
-cmake --build . --config Release --target all -j
+cmake --build "${ROOT_DIR}/build" --config Release --target all -j
 
 echo "✔ Release build complete."
 
@@ -31,7 +27,7 @@ echo "✔ Release build complete."
 # ------------------------------------------------------------
 # Run benchmarks (Google Benchmark)
 # ------------------------------------------------------------
-BENCH_BIN="./benchmarks/bench_hnsw"
+BENCH_BIN="${ROOT_DIR}/build/benchmarks/bench_hnsw"
 BENCH_OUT_DIR="${ROOT_DIR}/bench_results"
 mkdir -p "${BENCH_OUT_DIR}"
 
@@ -51,7 +47,6 @@ else
     echo "❌ Benchmark binary not found: ${BENCH_BIN}"
 fi
 
-cd "${ROOT_DIR}"
 
 # ============================================================
 # 2. Debug + Sanitizer build (optional but recommended)
@@ -61,13 +56,13 @@ echo "================ DEBUG + SANITIZER BUILD ================"
 
 rm -rf build-sanitize
 
-cmake -S cpp -B build-sanitize \
+cmake -S "${ROOT_DIR}/cpp" -B "${ROOT_DIR}/build-sanitize" \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g" \
   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
   -DCMAKE_C_FLAGS="-fsanitize=address,undefined -g"
 
-cmake --build build-sanitize -j
+cmake --build "${ROOT_DIR}/build-sanitize" -j
 
 echo "✔ Sanitizer build complete."
 
@@ -75,7 +70,7 @@ echo "✔ Sanitizer build complete."
 # Run sanitizer tests
 # ------------------------------------------------------------
 echo "Running sanitizer tests..."
-ctest --test-dir build-sanitize -j 1 --output-on-failure -V
+ctest --test-dir "${ROOT_DIR}/build-sanitize" -j 1 --output-on-failure -V
 
 echo ""
 echo "==================== DONE ===================="

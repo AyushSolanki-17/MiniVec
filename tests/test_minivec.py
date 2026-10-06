@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from minivec.core import MiniVecIndex
+from minivec import MiniVecIndex
 
 
 def test_basic_insert_and_size():
@@ -55,3 +55,34 @@ def test_search_with_stats():
     assert isinstance(results, list)
     assert "visited_nodes" in stats
     assert "distance_calls" in stats
+
+
+def test_batch_insert_and_search_match_single_item_api():
+    data = np.array([[0, 0], [1, 0], [0, 2]], dtype=np.float32)
+    index = MiniVecIndex(dim=2)
+
+    assert index.add_many(data) == [0, 1, 2]
+    batch_results = index.search_many(data, k=2)
+    single_results = [index.search(row, k=2) for row in data]
+    assert batch_results == single_results
+
+    strided = np.arange(12, dtype=np.float64).reshape(3, 4)[:, ::2]
+    strided_index = MiniVecIndex(dim=2)
+    assert strided_index.add_many(strided) == [0, 1, 2]
+    assert len(strided_index.search_many(strided, k=1)) == 3
+
+    empty = np.empty((0, 2), dtype=np.float32)
+    assert strided_index.add_many(empty) == []
+    assert strided_index.search_many(empty, k=1) == []
+
+
+def test_batch_shape_validation():
+    index = MiniVecIndex(dim=2)
+    with pytest.raises(ValueError, match="shape"):
+        index.add_many(np.ones(2, dtype=np.float32))
+    with pytest.raises(ValueError, match="shape"):
+        index.search_many(np.ones((3, 4), dtype=np.float32), k=1)
+
+
+def test_set_beta_is_not_exposed_as_unsupported_api():
+    assert not hasattr(MiniVecIndex(dim=2), "set_beta")
