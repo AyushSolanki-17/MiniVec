@@ -14,6 +14,7 @@
 #include <optional>
 #include <limits>
 #include <cstdint>
+#include <cstddef>
 
 namespace minivec
 {
@@ -76,8 +77,8 @@ namespace minivec
         //   layer: Zero-based index of the layer.
         //
         // Returns:
-        //   Const reference to the vector of neighbor node IDs at the given layer.
-        const std::vector<NodeId> get_neighbors(int layer) const;
+        //   Thread-safe copy of neighbor IDs at the given layer.
+        std::vector<NodeId> get_neighbors(int layer) const;
 
         // Visit neighbors while holding a shared lock, avoiding a per-hop
         // adjacency snapshot allocation in search paths. The visitor must not
@@ -118,8 +119,8 @@ namespace minivec
         // Args:
         //   id: Identifier of the neighbor to remove.
         //   layer: Zero-based layer index from which the neighbor is removed.
-        //   preserve_order: If true, the neighbor will be swapped with the last
-        //     neighbor and then removed.
+        //   preserve_order: If true, remaining neighbors retain their order;
+        //     otherwise the last neighbor takes the removed neighbor's position.
         //
         // Returns:
         //   Implementation-defined status code.
@@ -155,6 +156,6 @@ namespace minivec
 
         // internal: caller must hold exclusive lock on mtx
         bool add_neighbor_nolock(NodeId id, int layer, int *out_index = nullptr);
-        bool remove_neighbor_nolock(NodeId id, int layer);
+        bool remove_neighbor_nolock(NodeId id, int layer, bool preserve_order = true);
     };
 } // namespace minivec

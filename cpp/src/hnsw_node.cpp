@@ -5,8 +5,10 @@
  * This file implements the HNSWNodeSimple class, which represents a node in the HNSW graph.
  */
 #include "minivec/hnsw_node.hpp"
-#include <iostream>
-#include <thread>
+#include <algorithm>
+#include <mutex>
+#include <sstream>
+#include <stdexcept>
 namespace minivec
 {
 // Initializes a node with the given id, number of layers, and neighbor capacity.
@@ -60,7 +62,7 @@ void HNSWNodeSimple::check_layer_bounds_or_throw(int t_layer) const
 //
 // Returns:
 //   Vector of neighbor ids.
-const std::vector<NodeId> HNSWNodeSimple::get_neighbors(int t_layer) const
+std::vector<NodeId> HNSWNodeSimple::get_neighbors(int t_layer) const
 {
     std::shared_lock lock(mtx);
     check_layer_bounds_or_throw(t_layer);
@@ -88,14 +90,23 @@ bool HNSWNodeSimple::add_neighbor_nolock(NodeId id, int layer, int *out_index)
     return true;
 }
 
-bool HNSWNodeSimple::remove_neighbor_nolock(NodeId id, int layer)
+bool HNSWNodeSimple::remove_neighbor_nolock(NodeId id, int layer, bool preserve_order)
 {
     check_layer_bounds_or_throw(layer);
     const size_t begin = layer_offsets[layer];
     const size_t end = begin + layer_sizes[layer];
     auto it = std::find(neighbor_ids.begin() + begin, neighbor_ids.begin() + end, id);
     if (it == neighbor_ids.begin() + end) return false;
-    neighbor_ids.erase(it);
+    if (preserve_order)
+    {
+        neighbor_ids.erase(it);
+    }
+    else
+    {
+        if (it + 1 != neighbor_ids.begin() + end)
+            *it = neighbor_ids[end - 1];
+        neighbor_ids.erase(neighbor_ids.begin() + end - 1);
+    }
     --layer_sizes[layer];
     for (size_t i = static_cast<size_t>(layer) + 1; i < layer_offsets.size(); ++i)
         --layer_offsets[i];
@@ -128,32 +139,8 @@ bool HNSWNodeSimple::add_neighbor(NodeId id, int layer, int *out_index)
 //   1 if the neighbor was removed, 0 if it was not found.
 bool HNSWNodeSimple::remove_neighbor(NodeId id, int layer, bool preserve_order)
 {
-    check_layer_bounds_or_throw(layer);
     std::unique_lock lock(mtx);
-    return remove_neighbor_nolock(id, layer);
-    // std::vector<int> &vec = neighbors[layer];
-    // std::vector<int>::iterator it = std::find(vec.begin(), vec.end(), id);
-    // if (it == vec.end())
-    //     return false;
-
-    // size_t idx = it - vec.begin();
-
-    // if (!preserve_order)
-    // {
-    //     // swap-with-last and pop (O(1))
-    //     size_t last = vec.size() - 1;
-    //     if (idx != last)
-    //     {
-    //         vec[idx] = vec[last];
-    //     }
-    //     vec.pop_back();
-    // }
-    // else
-    // {
-    //     // preserve order (O(n))
-    //     vec.erase(it);
-    // }
-    // return true;
+    return remove_neighbor_nolock(id, layer, preserve_order);
 }
 
 

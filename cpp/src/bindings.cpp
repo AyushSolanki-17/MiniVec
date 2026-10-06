@@ -6,6 +6,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <cstring>
 #include <vector>
 
 #include "minivec/utils.hpp"
@@ -60,8 +61,9 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def("insert_vector", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec)
              {
                  auto ptr = numpy_to_ptr(vec, index.get_vector_dim());
+                 std::vector<float> owned(ptr, ptr + index.get_vector_dim());
                  minivec::NodeId id;
-                 { py::gil_scoped_release release; id = index.insert_vector(ptr); }
+                 { py::gil_scoped_release release; id = index.insert_vector(owned.data()); }
                  return id; }, py::arg("vector"))
 
         .def("insert_vectors", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vectors)
@@ -71,12 +73,15 @@ PYBIND11_MODULE(minivec_cpp, m)
                  const auto rows = vectors.shape(0);
                  const auto dim = vectors.shape(1);
                  const float *data = vectors.data();
+                 std::vector<float> owned;
+                 if (rows > 0)
+                     owned.assign(data, data + rows * dim);
                  std::vector<minivec::NodeId> ids;
                  ids.reserve(static_cast<size_t>(rows));
                  {
                      py::gil_scoped_release release;
                      for (py::ssize_t row = 0; row < rows; ++row)
-                         ids.push_back(index.insert_vector(data + row * dim));
+                         ids.push_back(index.insert_vector(owned.data() + row * dim));
                  }
                  return ids; }, py::arg("vectors"))
 
@@ -84,8 +89,9 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def("search", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec, int k)
              {
                 auto ptr = numpy_to_ptr(vec, index.get_vector_dim());
+                std::vector<float> owned(ptr, ptr + index.get_vector_dim());
                 std::vector<minivec::Candidate> results;
-                { py::gil_scoped_release release; results = index.search_top_k(ptr, index.get_efSearch(), k); }
+                { py::gil_scoped_release release; results = index.search_top_k(owned.data(), index.get_efSearch(), k); }
 
                 py::list out;
                 for (const auto &c : results)
@@ -98,11 +104,12 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def("search_with_stats", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec, int k)
              {
          auto ptr = numpy_to_ptr(vec, index.get_vector_dim());
+         std::vector<float> owned(ptr, ptr + index.get_vector_dim());
 
          minivec::SearchStats stats;
          std::vector<minivec::Candidate> results;
          { py::gil_scoped_release release; results = index.search_top_k(
-             ptr, index.get_efSearch(), k, &stats); }
+             owned.data(), index.get_efSearch(), k, &stats); }
 
          py::list out;
          for (const auto &c : results)
@@ -124,12 +131,15 @@ PYBIND11_MODULE(minivec_cpp, m)
                  const auto rows = queries.shape(0);
                  const auto dim = queries.shape(1);
                  const float *data = queries.data();
+                 std::vector<float> owned;
+                 if (rows > 0)
+                     owned.assign(data, data + rows * dim);
                  std::vector<std::vector<std::pair<minivec::NodeId, float>>> results;
                  results.reserve(static_cast<size_t>(rows));
                  {
                      py::gil_scoped_release release;
                      for (py::ssize_t row = 0; row < rows; ++row) {
-                         auto row_results = index.search_top_k(data + row * dim, index.get_efSearch(), k);
+                         auto row_results = index.search_top_k(owned.data() + row * dim, index.get_efSearch(), k);
                          std::vector<std::pair<minivec::NodeId, float>> converted;
                          converted.reserve(row_results.size());
                          for (const auto &candidate : row_results)

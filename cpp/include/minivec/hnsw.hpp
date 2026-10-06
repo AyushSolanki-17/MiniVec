@@ -29,8 +29,10 @@
 #include <vector>
 #include <shared_mutex>
 #include <mutex>
-
-#include <iostream>
+#include <memory>
+#include <queue>
+#include <string>
+#include <cstdint>
 
 namespace minivec
 {
@@ -42,8 +44,7 @@ namespace minivec
     class HNSWIndexSimple
     {
     private:
-        // Maximum number of bi-directional connections (neighbors) per node
-        // on each layer.
+        // Upper-layer maximum neighbors per node; layer 0 permits up to 2M.
         int M;
 
         // Current maximum layer index in the graph (0-based).
@@ -104,7 +105,7 @@ namespace minivec
         //
         // Args:
         //   dim_: Dimensionality of all vectors to be stored in the index.
-        //   M_: Maximum number of neighbors per node per layer (default 16).
+        //   M_: Upper-layer neighbor limit (layer 0 permits up to 2M, default 16).
         //   efConstruction_: Search breadth used during graph construction
         //       (default 200).
         //   efSearch_: Default search breadth used during queries (default 200).
@@ -113,7 +114,8 @@ namespace minivec
                         const std::string &distance_func_name_ = "l2_squared",
                         const std::string &final_distance_func_name_ = "l2");
 
-        // Adds a node with an externally provided layer.
+        // Adds an unlinked node with an externally provided layer. Callers
+        // constructing a graph manually must connect it before searching.
         //
         // Args:
         //   vec_vals: Pointer to a float array of length `dim` representing
@@ -170,7 +172,7 @@ namespace minivec
         //   Integer dimension of stored vectors.
         int get_vector_dim() const;
 
-        // Returns the maximum number of neighbors (M) per node per layer.
+        // Returns M (upper-layer limit; layer 0 permits up to 2M neighbors).
         //
         // Returns:
         //   Integer M value used by this index.
@@ -195,8 +197,8 @@ namespace minivec
         //       the vector to insert.
         //
         // Returns:
-        //   Integer ID of the inserted node.
-        int insert_vector(const float *vec_vals);
+        //   64-bit ID of the inserted node.
+        NodeId insert_vector(const float *vec_vals);
 
         // Prunes neighbors of a node at a given layer to enforce the HNSW degree constraint.
         //

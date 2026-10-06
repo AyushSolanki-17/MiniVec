@@ -24,6 +24,14 @@
 
 namespace minivec
 {
+    inline void validate_distance_inputs(const float *a, const float *b, int dim)
+    {
+        if (dim < 0)
+            throw std::invalid_argument("Distance dimension must not be negative");
+        if (dim > 0 && (!a || !b))
+            throw std::invalid_argument("Distance input pointer must not be null");
+    }
+
     enum class DistanceMetric
     {
         L2,
@@ -48,6 +56,7 @@ namespace minivec
                                    const float *__restrict b,
                                    int dim)
     {
+        validate_distance_inputs(a, b, dim);
         float sum = 0.0f;
         int i = 0;
         const int unroll = 4;
@@ -152,6 +161,7 @@ namespace minivec
     //   Squared L2 distance between a and b.
     inline float l2_squared_distance(const float *a, const float *b, int dim)
     {
+        validate_distance_inputs(a, b, dim);
 #if defined(__x86_64__) && (defined(__clang__) || defined(__GNUC__))
         static const int cpu_vector_level = [] {
             __builtin_cpu_init();
@@ -187,27 +197,31 @@ namespace minivec
 
     inline float inner_product_distance(const float *a, const float *b, int dim)
     {
-        float dot = 0.0f;
+        validate_distance_inputs(a, b, dim);
+        double dot = 0.0;
         for (int i = 0; i < dim; ++i)
-            dot += a[i] * b[i];
-        return -dot;
+            dot += static_cast<double>(a[i]) * b[i];
+        return static_cast<float>(-dot);
     }
 
     inline float cosine_distance(const float *a, const float *b, int dim)
     {
-        float dot = 0.0f;
-        float norm_a = 0.0f;
-        float norm_b = 0.0f;
+        validate_distance_inputs(a, b, dim);
+        double dot = 0.0;
+        double norm_a = 0.0;
+        double norm_b = 0.0;
         for (int i = 0; i < dim; ++i)
         {
-            dot += a[i] * b[i];
-            norm_a += a[i] * a[i];
-            norm_b += b[i] * b[i];
+            const double av = a[i];
+            const double bv = b[i];
+            dot += av * bv;
+            norm_a += av * av;
+            norm_b += bv * bv;
         }
-        if (norm_a == 0.0f || norm_b == 0.0f)
+        if (norm_a == 0.0 || norm_b == 0.0)
             return 1.0f;
-        const float similarity = dot / std::sqrt(norm_a * norm_b);
-        return 1.0f - std::max(-1.0f, std::min(1.0f, similarity));
+        const double similarity = dot / (std::sqrt(norm_a) * std::sqrt(norm_b));
+        return static_cast<float>(1.0 - std::max(-1.0, std::min(1.0, similarity)));
     }
 
     inline float compute_distance(DistanceMetric metric, const float *a, const float *b, int dim)

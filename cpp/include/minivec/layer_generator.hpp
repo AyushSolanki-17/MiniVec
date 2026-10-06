@@ -31,7 +31,7 @@ namespace minivec
     explicit HNSWLevelGenerator(double p,
                                 double eps = 1e-6,
                                 std::optional<uint32_t> seed = std::nullopt)
-        : p_(p), eps_(eps), rng_(make_rng(seed))
+        : p_(p), eps_(eps), rng_(make_rng(seed)), initial_rng_(rng_)
     {
       if (!(p_ > 0.0 && p_ <= 1.0))
       {
@@ -84,6 +84,12 @@ namespace minivec
       return level;
     }
 
+    void reset()
+    {
+      std::lock_guard<std::mutex> lock(rng_mutex_);
+      rng_ = initial_rng_;
+    }
+
     double p() const noexcept { return p_; }
     double eps() const noexcept { return eps_; }
     int max_level() const noexcept { return max_level_; }
@@ -94,6 +100,7 @@ namespace minivec
     int max_level_{0};
     // Keep RNG state with this generator so each index honors its own seed.
     mutable std::mt19937 rng_;
+    std::mt19937 initial_rng_;
     mutable std::mutex rng_mutex_;
 
     static std::mt19937 make_rng(std::optional<uint32_t> seed)
@@ -108,19 +115,22 @@ namespace minivec
     // Compute max_level such that p_^max_level <= eps => max_level >= log(eps)/log(p_)
     void compute_max_level()
     {
+      constexpr int HARD_CAP = 64;
       if (p_ >= 1.0)
       {
-        max_level_ = 0;
+        max_level_ = HARD_CAP;
         return;
       }
       // Solve p_^L <= eps  ->  L * log(p) <= log(eps)  (both logs are negative)
       double raw = std::log(eps_) / std::log(p_);
+      if (!std::isfinite(raw) || raw >= HARD_CAP)
+      {
+        max_level_ = HARD_CAP;
+        return;
+      }
       int cap = static_cast<int>(std::ceil(raw));
       if (cap < 1)
         cap = 1;
-      constexpr int HARD_CAP = 64;
-      if (cap > HARD_CAP)
-        cap = HARD_CAP;
       max_level_ = cap;
     }
 

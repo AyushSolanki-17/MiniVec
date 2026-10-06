@@ -7,10 +7,10 @@
  */
 #pragma once
 
-#include <cassert>
 #include <deque>
 #include <vector>
 #include <cstdint>
+#include <stdexcept>
 
 namespace minivec {
 // Stores fixed-dimensional vectors in stable, independently contiguous blocks.
@@ -36,7 +36,10 @@ struct VecStore {
   // Returns:
   //   The id of the newly added vector.
   inline std::int64_t add(const float* vals) {
-    assert(dim > 0);
+    if (dim <= 0)
+      throw std::logic_error("VecStore: dimension must be positive before adding vectors");
+    if (!vals)
+      throw std::invalid_argument("VecStore: vector pointer must not be null");
     std::int64_t id = size();
     data.emplace_back(vals, vals + dim);
     return id;
@@ -44,15 +47,17 @@ struct VecStore {
 
   // Returns a const pointer to the vector with the given id.
   inline const float* ptr(std::int64_t id) const {
-    return data[static_cast<std::size_t>(id)].data();
+    return data.at(static_cast<std::size_t>(id)).data();
   }
 
   // Returns a mutable pointer to the vector with the given id.
   inline float* ptr_mut(std::int64_t id) {
-    return data[static_cast<std::size_t>(id)].data();
+    return data.at(static_cast<std::size_t>(id)).data();
   }
 
   // Removes all stored vectors.
   inline void clear() { data.clear(); }
+
+  inline void pop_back() { data.pop_back(); }
 };
 }  // namespace minivec

@@ -41,9 +41,9 @@ cd MiniVec
 ### Requirements
 
 * C++17 compiler (GCC / Clang)
-* CMake ≥ 3.16
-* Python 3 with development headers (optional for bindings)
-* pybind11
+* CMake ≥ 3.18
+* Python 3 with development headers and pybind11 when `MINIVEC_BUILD_PYTHON=ON` (the default)
+* GoogleTest and Google Benchmark when their build options are enabled (both default to `ON`)
 
 ---
 
@@ -51,6 +51,16 @@ cd MiniVec
 
 ```bash
 ./scripts/build/build.sh
+```
+
+To build only the C++ library without Python, test, or benchmark dependencies:
+
+```bash
+cmake -S cpp -B build/cpp-core \
+  -DMINIVEC_BUILD_PYTHON=OFF \
+  -DMINIVEC_BUILD_TESTS=OFF \
+  -DMINIVEC_BUILD_BENCHMARKS=OFF
+cmake --build build/cpp-core
 ```
 
 ---

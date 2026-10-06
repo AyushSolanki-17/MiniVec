@@ -1,17 +1,19 @@
 
 #pragma once
 #include <map>
+#include <cstdint>
 namespace minivec
 {
     struct SearchStats
     {
-        // total unique nodes visited
+        // Number of nodes discovered by ef-search traversals (a node can be
+        // counted again in a different layer traversal).
         uint64_t visited_nodes = 0;
-        // distance computations           
-        uint64_t distance_calls = 0;   
+        // Distance computations made by ef-search traversals.
+        uint64_t distance_calls = 0;
         // Successful greedy moves during upper-layer descent.
         uint64_t greedy_hops = 0;
-        // per-layer visits      
-        std::map<int, uint64_t> layer_visits; 
+        // ef-search node discoveries grouped by layer.
+        std::map<int, uint64_t> layer_visits;
     };
 } // namespace minivec

@@ -9,6 +9,152 @@
 #include <unordered_map>
 #include <atomic>
 #include <thread>
+#include <type_traits>
+#include <utility>
+
+static_assert(std::is_same_v<
+              decltype(std::declval<minivec::HNSWIndexSimple &>().insert_vector(nullptr)),
+              minivec::NodeId>);
+
+TEST(HNSWTest, RejectsInvalidConfigurationAndVectorInputsWithoutMutation) {
+    EXPECT_THROW(minivec::HNSWIndexSimple(0), std::invalid_argument);
+    EXPECT_THROW(minivec::HNSWIndexSimple(2, 0), std::invalid_argument);
+    EXPECT_THROW(minivec::HNSWIndexSimple(2, std::numeric_limits<int>::max()), std::invalid_argument);
+    EXPECT_THROW(minivec::HNSWIndexSimple(2, 2, 0), std::invalid_argument);
+    EXPECT_THROW(minivec::HNSWIndexSimple(2, 2, 10, 0), std::invalid_argument);
+
+    minivec::HNSWIndexSimple index(2);
+    EXPECT_THROW(index.insert_vector(nullptr), std::invalid_argument);
+    EXPECT_EQ(index.get_node_count(), 0);
+    const float valid[] = {1.0f, 2.0f};
+    EXPECT_THROW(index.add_node(valid, -1), std::invalid_argument);
+    EXPECT_EQ(index.get_node_count(), 0);
+    const float non_finite[] = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    EXPECT_THROW(index.insert_vector(non_finite), std::invalid_argument);
+    EXPECT_EQ(index.get_node_count(), 0);
+}
+
+TEST(HNSWTest, ExplicitNodeInsertionUpdatesEntryPointAndSymmetricLinksValidateBothLayers) {
+    minivec::HNSWIndexSimple index(1, 2);
+    const float a[] = {1.0f};
+    const float b[] = {2.0f};
+    const auto low_id = index.add_node(a, 0);
+    const auto high_id = index.add_node(b, 1);
+
+    EXPECT_EQ(index.get_entry_point(), high_id);
+    EXPECT_EQ(index.get_max_layer(), 1);
+    EXPECT_THROW(index.link_nodes_symmetrically(high_id, low_id, 1), std::out_of_range);
+    EXPECT_TRUE(index.get_neighbors_copy(high_id, 1).empty());
+    EXPECT_TRUE(index.get_neighbors_copy(low_id, 0).empty());
+}
+
+TEST(HNSWTest, NeighborRemovalHonorsPreserveOrder) {
+    minivec::HNSWNodeSimple swapped(0, 1, 4);
+    minivec::HNSWNodeSimple ordered(1, 1, 4);
+    for (minivec::NodeId id : {10, 20, 30}) {
+        swapped.add_neighbor(id, 0);
+        ordered.add_neighbor(id, 0);
+    }
+
+    EXPECT_TRUE(swapped.remove_neighbor(20, 0));
+    EXPECT_TRUE(ordered.remove_neighbor(20, 0, true));
+    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<minivec::NodeId>{10, 30}));
+    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<minivec::NodeId>{10, 30}));
+
+    swapped.add_neighbor(40, 0);
+    ordered.add_neighbor(40, 0);
+    EXPECT_TRUE(swapped.remove_neighbor(10, 0));
+    EXPECT_TRUE(ordered.remove_neighbor(10, 0, true));
+    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<minivec::NodeId>{40, 30}));
+    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<minivec::NodeId>{30, 40}));
+}
+
+TEST(HNSWTest, TopKHandlesSmallEfZeroKAndLargeK) {
+    minivec::HNSWIndexSimple index(1, 2);
+    const float values[] = {0.0f, 1.0f, 2.0f, 3.0f};
+    std::vector<minivec::NodeId> ids;
+    for (float value : values)
+        ids.push_back(index.add_node(&value, 0));
+    for (size_t i = 0; i < ids.size(); ++i)
+        for (size_t j = i + 1; j < ids.size(); ++j)
+            index.link_nodes_symmetrically(ids[i], ids[j], 0);
+
+    const float query[] = {0.0f};
+    EXPECT_TRUE(index.search_top_k(query, 1, 0).empty());
+    EXPECT_THROW(index.search_top_k(query, 1, -1), std::invalid_argument);
+    EXPECT_EQ(index.search_top_k(query, 1, 4).size(), 4u);
+    EXPECT_EQ(index.search_top_k(query, 1, std::numeric_limits<int>::max()).size(), 4u);
+}
+
+TEST(HNSWTest, LayerGeneratorCapsExtremeParametersBeforeIntegerConversion) {
+    const double p = std::nextafter(1.0, 0.0);
+    minivec::HNSWLevelGenerator generator(p, std::numeric_limits<double>::min(), 7);
+    EXPECT_EQ(generator.max_level(), 64);
+    EXPECT_GE(generator.getRandomLayer(), 0);
+    EXPECT_LE(generator.getRandomLayer(), 64);
+
+    minivec::HNSWLevelGenerator always_rises(1.0, 1e-6, 7);
+    EXPECT_EQ(always_rises.max_level(), 64);
+    EXPECT_EQ(always_rises.getRandomLayer(), 64);
+}
+
+TEST(HNSWTest, ClearRestartsDeterministicLayerSequence) {
+    minivec::HNSWIndexSimple index(2, 4, 20, 20, true, 99);
+    const float vector[] = {0.5f, 1.0f};
+    std::vector<int> first_build;
+    for (int i = 0; i < 30; ++i) {
+        const auto id = index.insert_vector(vector);
+        first_build.push_back(index.get_layer(id));
+    }
+    index.clear();
+
+    for (int i = 0; i < 30; ++i) {
+        const auto id = index.insert_vector(vector);
+        EXPECT_EQ(index.get_layer(id), first_build[static_cast<size_t>(i)]);
+    }
+}
+
+TEST(HNSWTest, VisitWorkspaceCanBeReusedAcrossIndexes) {
+    minivec::HNSWIndexSimple first(1, 2, 10, 10, true, 11);
+    minivec::HNSWIndexSimple second(1, 2, 10, 10, true, 12);
+    const float values[] = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
+    for (float value : values) {
+        first.insert_vector(&value);
+        second.insert_vector(&value);
+    }
+    const float query[] = {0.25f};
+    const auto first_result = first.search_top_k(query, 5, 3);
+    const auto second_result = second.search_top_k(query, 5, 3);
+    const auto first_again = first.search_top_k(query, 5, 3);
+
+    ASSERT_EQ(first_result.size(), second_result.size());
+    ASSERT_EQ(first_result.size(), first_again.size());
+    for (size_t i = 0; i < first_result.size(); ++i) {
+        EXPECT_EQ(first_result[i].id, first_again[i].id);
+        EXPECT_FLOAT_EQ(first_result[i].distance, first_again[i].distance);
+    }
+}
+
+TEST(HNSWTest, CosineAndInnerProductRemainFiniteForLargeFiniteInputs) {
+    const float a[] = {1.0e20f, 1.0e20f};
+    const float same[] = {1.0e20f, 1.0e20f};
+    const float orthogonal[] = {1.0e20f, -1.0e20f};
+    const float opposite[] = {-1.0e20f, -1.0e20f};
+    const float cancelling[] = {1.0e20f, -1.0e20f};
+    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, same, 2), 0.0f);
+    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, orthogonal, 2), 1.0f);
+    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, opposite, 2), 2.0f);
+    EXPECT_FLOAT_EQ(minivec::inner_product_distance(a, cancelling, 2), 0.0f);
+}
+
+TEST(HNSWTest, DistanceHelpersRejectNegativeDimensions) {
+    const float value[] = {1.0f};
+    EXPECT_THROW(minivec::l2_squared_scalar(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(minivec::l2_squared_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(minivec::inner_product_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(minivec::cosine_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(minivec::l2_squared_distance(nullptr, value, 1), std::invalid_argument);
+}
 
 TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
     minivec::HNSWNodeSimple node(7, 1, 4);
