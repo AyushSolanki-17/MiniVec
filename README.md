@@ -42,8 +42,8 @@ cd MiniVec
 
 * C++17 compiler (GCC / Clang)
 * CMake ≥ 3.18
-* Python 3 with development headers and pybind11 when `MINIVEC_BUILD_PYTHON=ON` (the default)
-* GoogleTest and Google Benchmark when their build options are enabled (both default to `ON`)
+* Python 3 with development headers when `MINIVEC_BUILD_PYTHON=ON` (the default); CMake fetches pybind11
+* GoogleTest and Google Benchmark are fetched when their build options are enabled (both default to `ON`)
 
 ---
 
@@ -63,6 +63,8 @@ cmake -S cpp -B build/cpp-core \
 cmake --build build/cpp-core
 ```
 
+The default CMake configuration builds the Python extension, C++ tests, and benchmark target. Turn off the corresponding `MINIVEC_BUILD_*` options when configuring to omit those targets. On Windows, `scripts/build/build.ps1` runs the default Release build.
+
 ---
 
 ### Run Python Tests
@@ -71,7 +73,7 @@ cmake --build build/cpp-core
 PYTHONPATH=build:$PYTHONPATH python -m pytest
 ```
 
-Build the extension with the same Python interpreter used to run tests. CMake creates `minivec_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests.
+Build the extension with the same Python interpreter used to run tests. CMake creates `minivec_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests. To run the C++ tests after building, use `ctest --test-dir build --output-on-failure`.
 
 ## Repository layout
 
@@ -242,19 +244,7 @@ batch_results = index.search_many(queries, k=10)
 results, stats = index.search_with_stats(query, k=10)
 ```
 
----
-
-## 📂 Project Structure
-
-The source tree is organized as follows:
-
-```text
-cpp/          C++ library, headers, tests, and benchmarks
-minivec/      Python API wrapper
-tests/        Python tests
-docs/         Architecture and project documentation
-scripts/      Build and development scripts
-```
+`MiniVecIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, distance calls, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
 
 ---
 
