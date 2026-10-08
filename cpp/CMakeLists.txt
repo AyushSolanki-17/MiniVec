@@ -38,13 +38,17 @@ endif()
 include(FetchContent)
 
 if (MINIVEC_BUILD_PYTHON)
-    # ---- pybind11 (for Python bindings) ----
-    FetchContent_Declare(
-        pybind11
-        GIT_REPOSITORY https://github.com/pybind/pybind11.git
-        GIT_TAG v3.0.1
-    )
-    FetchContent_MakeAvailable(pybind11)
+    # Prefer the build environment's pybind11 (used by Python package builds).
+    # Keep FetchContent as a convenient fallback for direct CMake builds.
+    find_package(pybind11 CONFIG QUIET)
+    if (NOT pybind11_FOUND)
+        FetchContent_Declare(
+            pybind11
+            GIT_REPOSITORY https://github.com/pybind/pybind11.git
+            GIT_TAG v3.0.1
+        )
+        FetchContent_MakeAvailable(pybind11)
+    endif()
 endif()
 
 if (MINIVEC_BUILD_BENCHMARKS)
@@ -90,6 +94,10 @@ if (MINIVEC_BUILD_PYTHON)
     )
 
     message(STATUS "Using Python: ${Python_EXECUTABLE}")
+    install(TARGETS minivec_cpp
+        LIBRARY DESTINATION .
+        RUNTIME DESTINATION .
+    )
 endif()
 
 # =========================================================
