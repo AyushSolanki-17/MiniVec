@@ -10,8 +10,26 @@ exposed via pybind11. The goal is:
 """
 
 from typing import List, Tuple, Dict
+from operator import index as integer_index
 import numpy as np
 import minivec_cpp
+
+_C_INT_MAX = 2**31 - 1
+
+
+def _non_negative_k(k: int) -> int:
+    """Return k as an integer, rejecting bools and lossy conversions."""
+    if isinstance(k, (bool, np.bool_)):
+        raise TypeError("k must be a non-negative integer")
+    try:
+        value = integer_index(k)
+    except TypeError as exc:
+        raise TypeError("k must be a non-negative integer") from exc
+    if value < 0:
+        raise ValueError("k must be non-negative")
+    if value > _C_INT_MAX:
+        raise ValueError(f"k must be at most {_C_INT_MAX}")
+    return value
 
 
 class MiniVecIndex:
@@ -56,13 +74,32 @@ class MiniVecIndex:
         final_distance : str
             Distance used for final re-ranking.
         """
-        self.dim = dim
-        self.M = M
+        if isinstance(dim, (bool, np.bool_)) or not isinstance(dim, (int, np.integer)):
+            raise TypeError("dim must be a positive integer")
+        if dim <= 0:
+            raise ValueError("dim must be a positive integer")
+        if isinstance(M, (bool, np.bool_)) or not isinstance(M, (int, np.integer)):
+            raise TypeError("M must be a positive integer")
+        if M <= 0:
+            raise ValueError("M must be a positive integer")
+        if M > _C_INT_MAX // 2:
+            raise ValueError(f"M must be at most {_C_INT_MAX // 2}")
+        for name, value in (("ef_construction", ef_construction), ("ef_search", ef_search)):
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+                raise TypeError(f"{name} must be a positive integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+            if value > _C_INT_MAX:
+                raise ValueError(f"{name} must be at most {_C_INT_MAX}")
+        if dim > _C_INT_MAX:
+            raise ValueError(f"dim must be at most {_C_INT_MAX}")
+        self.dim = int(dim)
+        self.M = int(M)
         self._index = minivec_cpp.HNSWIndexSimple(
-            dim,
-            M,
-            ef_construction,
-            ef_search,
+            self.dim,
+            self.M,
+            int(ef_construction),
+            int(ef_search),
             False,          # deterministic_levelgen
             42,             # seed
             distance,
@@ -93,6 +130,8 @@ class MiniVecIndex:
             raise ValueError(
                 f"Expected vector of shape ({self.dim},), got {vec.shape}"
             )
+        if not np.isfinite(vec).all():
+            raise ValueError("Vector values must all be finite")
 
         return int(self._index.insert_vector(vec))
 
@@ -109,7 +148,9 @@ class MiniVecIndex:
         query : np.ndarray
             Query vector of shape (dim,).
         k : int
-            Number of neighbors to retrieve.
+            Number of neighbors to retrieve. Must be a non-negative integer.
+            Zero returns an empty list; values larger than the index size
+            return all available neighbors.
 
         Returns
         -------
@@ -123,7 +164,9 @@ class MiniVecIndex:
                 f"Expected query of shape ({self.dim},), got {q.shape}"
             )
 
-        return self._index.search(q, k)
+        if not np.isfinite(q).all():
+            raise ValueError("Query values must all be finite")
+        return self._index.search(q, _non_negative_k(k))
 
     def search_with_stats(
         self, query: np.ndarray, k: int
@@ -144,29 +187,35 @@ class MiniVecIndex:
             raise ValueError(
                 f"Expected query of shape ({self.dim},), got {q.shape}"
             )
+        if not np.isfinite(q).all():
+            raise ValueError("Query values must all be finite")
 
-        results, stats = self._index.search_with_stats(q, k)
+        results, stats = self._index.search_with_stats(q, _non_negative_k(k))
         return results, dict(stats)
 
     def add_many(self, vectors: np.ndarray) -> List[int]:
-        """Insert a 2D array of vectors and return their assigned IDs."""
+        """Insert finite vectors of shape (n, dim) and return their IDs."""
         matrix = np.asarray(vectors, dtype=np.float32)
         if matrix.ndim != 2 or matrix.shape[1] != self.dim:
             raise ValueError(
                 f"Expected vectors with shape (n, {self.dim}), got {matrix.shape}"
             )
+        if not np.isfinite(matrix).all():
+            raise ValueError("Vector values must all be finite")
         return list(self._index.insert_vectors(matrix))
 
     def search_many(
         self, queries: np.ndarray, k: int
     ) -> List[List[Tuple[int, float]]]:
-        """Search a 2D array of queries and return one top-k list per row."""
+        """Search finite queries of shape (n, dim), returning one top-k list per row."""
         matrix = np.asarray(queries, dtype=np.float32)
         if matrix.ndim != 2 or matrix.shape[1] != self.dim:
             raise ValueError(
                 f"Expected queries with shape (n, {self.dim}), got {matrix.shape}"
             )
-        return self._index.search_batch(matrix, k)
+        if not np.isfinite(matrix).all():
+            raise ValueError("Query values must all be finite")
+        return self._index.search_batch(matrix, _non_negative_k(k))
 
     # ------------------------------------------------------------------
     # Introspection
