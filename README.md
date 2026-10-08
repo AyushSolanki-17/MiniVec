@@ -225,7 +225,7 @@ Instrumentation is available in **C++** and through the Python `search_with_stat
 
 ## 📈 Benchmarking
 
-No reproducible benchmark results are currently published. The benchmark target is in `cpp/benchmarks/`; compare results only after recording dataset, parameters, hardware, build options, and baseline implementation.
+The standalone reproducible recall/latency workflow and a sample run are documented in [`docs/benchmarks.md`](docs/benchmarks.md). The C++ benchmark target is in `cpp/benchmarks/`. Compare results only when dataset, parameters, hardware, build options, and baseline implementation are recorded.
 
 ---
 
