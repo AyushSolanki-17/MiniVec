@@ -25,11 +25,11 @@ generation used seed 42.
 
 | ef_search | Recall@10 | MiniVec p50 (ms/query) | MiniVec p95 (ms/query) | Build (s) |
 | ---: | ---: | ---: | ---: | ---: |
-| 50 | 0.958 | 0.047 | 0.053 | 3.468 |
-| 100 | 0.985 | 0.076 | 0.085 | 3.478 |
-| 200 | 0.997 | 0.117 | 0.134 | 3.510 |
+| 50 | 0.958 | 0.048 | 0.055 | 3.468 |
+| 100 | 0.985 | 0.076 | 0.085 | 3.490 |
+| 200 | 0.997 | 0.117 | 0.124 | 3.507 |
 
-The exact NumPy baseline in this run had 0.328 ms p50 and 0.413 ms p95 per
+The exact NumPy baseline in this run had 0.233 ms p50 and 0.289 ms p95 per
 query. This is a small synthetic example, not a general performance claim:
 results depend on the dataset, Python and NumPy versions, compiler, and machine.
 The baseline also measures NumPy's vectorized CPU implementation, while MiniVec

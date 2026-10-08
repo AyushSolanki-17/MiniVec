@@ -1,0 +1,61 @@
+{
+  "benchmark": "synthetic Gaussian vectors; exact squared-L2 ground truth",
+  "revision": "a4482b95ee8444ef3dba3b73531d39fec290bf08",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python": "3.14.4",
+    "numpy": "2.5.2",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "cmake": "cmake version 4.4.4",
+    "build_type": "Release"
+  },
+  "dataset": {
+    "count": 5000,
+    "dimension": 128,
+    "queries": 100,
+    "k": 10,
+    "seed": 42
+  },
+  "index": {
+    "M": 32,
+    "ef_construction": 200
+  },
+  "exact_search_latency_ms": {
+    "p50": 0.23345849996303514,
+    "p95": 0.2889368500177624,
+    "mean": 0.24004792000482666
+  },
+  "configurations": [
+    {
+      "ef_search": 50,
+      "build_seconds": 3.467898499999933,
+      "recall_at_k": 0.958,
+      "query_latency_ms": {
+        "p50": 0.04822899995815533,
+        "p95": 0.05546430002141278,
+        "mean": 0.049180849999856946
+      }
+    },
+    {
+      "ef_search": 100,
+      "build_seconds": 3.4901682089999895,
+      "recall_at_k": 0.985,
+      "query_latency_ms": {
+        "p50": 0.0759999999786487,
+        "p95": 0.08470414999806053,
+        "mean": 0.07752952999680929
+      }
+    },
+    {
+      "ef_search": 200,
+      "build_seconds": 3.506891875000065,
+      "recall_at_k": 0.997,
+      "query_latency_ms": {
+        "p50": 0.11662499997555642,
+        "p95": 0.12431490003450561,
+        "mean": 0.11803786999166732
+      }
+    }
+  ]
+}
