@@ -1,0 +1,28 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "minivec-ann"
+version = "0.1.0"
+description = "A research-oriented C++ HNSW vector search implementation with Python bindings"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.21"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[tool.scikit-build]
+wheel.packages = ["minivec"]
+cmake.source-dir = "cpp"
+cmake.build-type = "Release"
+cmake.args = [
+  "-DMINIVEC_BUILD_PYTHON=ON",
+  "-DMINIVEC_BUILD_TESTS=OFF",
+  "-DMINIVEC_BUILD_BENCHMARKS=OFF",
+]

@@ -38,6 +38,17 @@ cd MiniVec
 
 ## ⚙️ Installation
 
+Install the Python package from a source checkout with:
+
+```bash
+python -m pip install .
+```
+
+This builds the C++ extension for the active Python interpreter. A C++17
+compiler and CMake 3.18 or newer are required; pip installs the Python build
+dependencies, including pybind11. Prebuilt platform wheels are not published
+yet.
+
 ### Requirements
 
 * C++17 compiler (GCC / Clang)
