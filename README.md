@@ -12,16 +12,16 @@
 
 ## 🔍 Overview
 
-**MiniVec** is a **from-scratch implementation of the Hierarchical Navigable Small World (HNSW)** approximate nearest neighbor (ANN) algorithm, written in modern **C++17** and exposed to Python via **pybind11**.
+**MiniVec** is a research and learning reference for the Hierarchical Navigable Small World (HNSW) approximate nearest neighbor (ANN) algorithm. It is implemented in **C++17** and exposed to Python via **pybind11**.
 
-Unlike projects that wrap existing ANN libraries, MiniVec is intentionally built to:
+MiniVec is intended for students, researchers, and engineers who want to inspect how an HNSW index is built and searched, then experiment with its parameters and implementation. The project prioritizes:
 
-- expose the **internal mechanics of HNSW**
-- emphasize **determinism and correctness**
-- support **research experimentation**
-- demonstrate **systems-level engineering practices**
+- exposing the **internal mechanics of HNSW**
+- make algorithm behavior observable through search statistics
+- support reproducible, controlled experiments
+- provide a small C++ core with a practical Python interface
 
-The goal of this project is not to replace FAISS or hnswlib, but to provide a **clear, inspectable, and extensible reference implementation** of ANN search.
+The current scope is a single-process, in-memory HNSW index for fixed-size float vectors. The Python API and performance profile are experimental; persistence, deletion, and index updates are not currently supported. Use the project to study and evaluate implementation choices, and consult the benchmark section before drawing performance conclusions.
 
 ---
 
@@ -263,24 +263,15 @@ The constructor requires positive integer values for `dim`, `M`, `ef_constructio
 
 ---
 
-## 🧠 Why This Project Exists
+## 🧠 Project Scope
 
-MiniVec is not intended to compete with FAISS or hnswlib.
-
-Instead it exists to:
-
-* deeply understand ANN algorithms
-* explore algorithm–systems tradeoffs
-* demonstrate performance-oriented C++ design
-* provide a transparent reference implementation
-
-It is designed to be **read, studied, modified, and extended**.
+MiniVec gives readers a compact codebase for studying graph construction, approximate search, distance metrics, concurrency, and recall/latency tradeoffs. Search instrumentation and deterministic serial builds support repeatable experiments. The project does not yet provide persistence, deletion, update operations, distributed search, or prebuilt platform wheels.
 
 ---
 
 ## 🔮 Future Work
 
-Planned improvements:
+Possible research directions:
 
 * adaptive `efSearch`
 * memory-mapped indices
