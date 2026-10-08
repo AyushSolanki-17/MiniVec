@@ -55,6 +55,8 @@ class MiniVecIndex:
         ef_search: int = 200,
         distance: str = "l2_squared",
         final_distance: str = "l2",
+        deterministic: bool = False,
+        seed: int = 42,
     ):
         """
         Create a new HNSW index.
@@ -73,6 +75,10 @@ class MiniVecIndex:
             Distance function used internally (e.g. "l2_squared").
         final_distance : str
             Distance used for final re-ranking.
+        deterministic : bool
+            Use seeded serial level generation for repeatable graph builds.
+        seed : int
+            Seed used when ``deterministic`` is true.
         """
         if isinstance(dim, (bool, np.bool_)) or not isinstance(dim, (int, np.integer)):
             raise TypeError("dim must be a positive integer")
@@ -100,8 +106,8 @@ class MiniVecIndex:
             self.M,
             int(ef_construction),
             int(ef_search),
-            False,          # deterministic_levelgen
-            42,             # seed
+            deterministic,
+            seed,
             distance,
             final_distance,
         )
