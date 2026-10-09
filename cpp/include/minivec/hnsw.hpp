@@ -33,6 +33,7 @@
 #include <queue>
 #include <string>
 #include <cstdint>
+#include <atomic>
 
 namespace minivec
 {
@@ -60,7 +61,7 @@ namespace minivec
         int efConstruction;
 
         // Default search-time breadth (efSearch).
-        int efSearch;
+        std::atomic<int> efSearch;
 
         // Underlying storage for all vectors, indexed by node ID.
         VecStore store;
@@ -189,6 +190,10 @@ namespace minivec
         // Returns:
         //   Integer efSearch value used for queries.
         int get_efSearch() const;
+
+        // Updates the default search breadth used by searches that request
+        // the configured value. The setting is safe to change during queries.
+        void set_efSearch(int efSearch_);
 
         // Inserts a new vector into the index using an automatically generated layer.
         //
