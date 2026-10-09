@@ -200,7 +200,14 @@ namespace minivec
     // Returns the default ef parameter used during search.
     int HNSWIndexSimple::get_efSearch() const
     {
-        return efSearch;
+        return efSearch.load(std::memory_order_relaxed);
+    }
+
+    void HNSWIndexSimple::set_efSearch(int efSearch_)
+    {
+        if (efSearch_ <= 0)
+            throw std::invalid_argument("HNSWIndexSimple: efSearch must be positive");
+        efSearch.store(efSearch_, std::memory_order_relaxed);
     }
 
     // Prunes neighbors of a node at a given layer using the HNSW diversity rule.
@@ -662,7 +669,8 @@ namespace minivec
         }
 
         // EF search on layer 0.
-        int effective_ef = std::max((ef > 0) ? ef : efSearch, k);
+        const int configured_ef = ef > 0 ? ef : efSearch.load(std::memory_order_relaxed);
+        int effective_ef = std::max(configured_ef, k);
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer_unlocked(query, current, 0, effective_ef, stats);
 
         return filter_top_k_unlocked(query, candidates, k, false);

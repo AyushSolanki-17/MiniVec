@@ -223,6 +223,18 @@ class MiniVecIndex:
             raise ValueError("Query values must all be finite")
         return self._index.search_batch(matrix, _non_negative_k(k))
 
+    def set_ef_search(self, ef_search: int) -> None:
+        """Set the default search breadth used by subsequent queries."""
+        if isinstance(ef_search, (bool, np.bool_)) or not isinstance(
+            ef_search, (int, np.integer)
+        ):
+            raise TypeError("ef_search must be a positive integer")
+        if ef_search <= 0:
+            raise ValueError("ef_search must be a positive integer")
+        if ef_search > _C_INT_MAX:
+            raise ValueError(f"ef_search must be at most {_C_INT_MAX}")
+        self._index.set_ef_search(int(ef_search))
+
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------

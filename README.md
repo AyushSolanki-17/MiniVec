@@ -257,6 +257,8 @@ results, stats = index.search_with_stats(query, k=10)
 
 `MiniVecIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. Set `deterministic=True` and a fixed `seed` to make serial graph builds repeatable for the same insertion order. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, distance calls, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
 
+Use `index.set_ef_search(value)` to tune the default query breadth after building the graph. It affects subsequent scalar and batch searches and can be adjusted while other threads are querying; larger values generally trade latency for recall.
+
 ### Input and edge-case behavior
 
 The constructor requires positive integer values for `dim`, `M`, `ef_construction`, and `ef_search`. Vector and query inputs are converted to `float32` and must have the configured dimension; all values must be finite. Batch methods accept arrays shaped `(n, dim)`, including empty batches. Search `k` must be a non-negative integer: `k=0` returns no results, searching an empty index returns no results, and `k` larger than the index size returns all available results. Result lists are ordered by increasing distance.

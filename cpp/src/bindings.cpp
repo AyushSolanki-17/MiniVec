@@ -157,6 +157,8 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def("M", &minivec::HNSWIndexSimple::get_M)
         .def("efConstruction", &minivec::HNSWIndexSimple::get_efConstruction)
         .def("efSearch", &minivec::HNSWIndexSimple::get_efSearch)
+        .def("set_ef_search", &minivec::HNSWIndexSimple::set_efSearch,
+             py::arg("ef_search"))
 
         // -------- vector access --------
         .def("get_vector", [](minivec::HNSWIndexSimple &index, minivec::NodeId id)
