@@ -71,20 +71,21 @@ def main():
         exact_ids.append(set(top[np.argsort(distances[top])].tolist()))
         exact_latency_ms.append((time.perf_counter() - start) * 1000)
 
+    index = MiniVecIndex(
+        dim=args.dim,
+        M=args.M,
+        ef_construction=args.ef_construction,
+        ef_search=args.ef_search[0],
+        deterministic=True,
+        seed=args.seed,
+    )
+    build_start = time.perf_counter()
+    index.add_many(vectors)
+    build_seconds = time.perf_counter() - build_start
+
     configurations = []
     for ef_search in args.ef_search:
-        index = MiniVecIndex(
-            dim=args.dim,
-            M=args.M,
-            ef_construction=args.ef_construction,
-            ef_search=ef_search,
-            deterministic=True,
-            seed=args.seed,
-        )
-        build_start = time.perf_counter()
-        index.add_many(vectors)
-        build_seconds = time.perf_counter() - build_start
-
+        index.set_ef_search(ef_search)
         query_latency_ms = []
         recall_hits = 0
         for query, expected in zip(queries, exact_ids):
@@ -96,7 +97,6 @@ def main():
         configurations.append(
             {
                 "ef_search": ef_search,
-                "build_seconds": build_seconds,
                 "recall_at_k": recall_hits / (args.queries * args.k),
                 "query_latency_ms": {
                     "p50": percentile(query_latency_ms, 50),
@@ -126,6 +126,7 @@ def main():
             "seed": args.seed,
         },
         "index": {"M": args.M, "ef_construction": args.ef_construction},
+        "build_seconds": build_seconds,
         "exact_search_latency_ms": {
             "p50": percentile(exact_latency_ms, 50),
             "p95": percentile(exact_latency_ms, 95),
