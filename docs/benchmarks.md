@@ -18,18 +18,18 @@ match.
 
 ## Recorded example
 
-The checked-in [JSON result](benchmark-results/2026-10-08-local.json) is one
+The checked-in [JSON result](benchmark-results/2026-10-09-local.json) is one
 local run on Apple silicon using 5,000 vectors of 128 dimensions and 100
 queries. MiniVec used `M=32` and `ef_construction=200`; data and level
 generation used seed 42.
 
 | ef_search | Recall@10 | MiniVec p50 (ms/query) | MiniVec p95 (ms/query) |
 | ---: | ---: | ---: | ---: |
-| 50 | 0.958 | 0.048 | 0.055 |
-| 100 | 0.985 | 0.076 | 0.085 |
-| 200 | 0.997 | 0.117 | 0.124 |
+| 50 | 0.958 | 0.047 | 0.051 |
+| 100 | 0.985 | 0.074 | 0.078 |
+| 200 | 0.997 | 0.114 | 0.121 |
 
-Index construction took 3.468 seconds. The exact NumPy baseline in this run had 0.233 ms p50 and 0.289 ms p95 per
+Index construction took 3.422 seconds. The exact NumPy baseline in this run had 0.283 ms p50 and 0.322 ms p95 per
 query. This is a small synthetic example, not a general performance claim:
 results depend on the dataset, Python and NumPy versions, compiler, and machine.
 The baseline also measures NumPy's vectorized CPU implementation, while MiniVec
