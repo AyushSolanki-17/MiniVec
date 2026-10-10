@@ -1,0 +1,83 @@
+name: Full tests
+
+# The complete suite: every C++ test on Linux and macOS, sanitizers, and
+# Python on both platforms. Runs weekly and on demand, not on every PR.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpp:
+    name: C++ (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure
+        run: >
+          cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Release
+          -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -j 4 -LE stress
+
+  sanitize:
+    name: Sanitizer (${{ matrix.sanitizer }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread]
+    env:
+      CC: clang
+      CXX: clang++
+      ASAN_OPTIONS: halt_on_error=1:detect_leaks=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      TSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v5
+
+      # Newer Ubuntu kernels use more mmap randomness than TSAN supports.
+      - name: Lower ASLR entropy for TSAN
+        if: matrix.sanitizer == 'thread'
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: >
+          cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-O1 -g"
+          -DMINIVEC_SANITIZE=${{ matrix.sanitizer }}
+          -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      # Timing and benchmark-style tests measure speed, not memory or thread
+      # safety, and run many times slower under sanitizers.
+      - name: Test
+        run: >
+          ctest --test-dir build --output-on-failure -j 4 -LE stress
+          -E "HNSWBenchmark\\.|HNSWLatency\\.|HNSWAccuracy\\."
+
+  python:
+    name: Python 3.12 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q
