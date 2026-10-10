@@ -22,54 +22,31 @@ and recall uses the published ground truth. `--limit-queries N` uses the first
 N queries; `--limit-train N` indexes the first N vectors and recomputes exact
 ground truth for that subset.
 
-### SIFT1M result
+### SIFT1M results
 
 One run on 2026-10-10: Apple M5 (16 GB), macOS 26.6, Apple clang 21, Release
-build, Python 3.14, NumPy 2.5. 1,000,000 base vectors, 10,000 queries, k=10,
-`M=16`, `ef_construction=200`, deterministic levels (seed 42), single-threaded
-build and queries. Raw data:
-[2026-10-10-sift1m.json](benchmark-results/2026-10-10-sift1m.json).
-
-| ef_search | Recall@10 | p50 (ms) | p95 (ms) | p99 (ms) | QPS (1 thread) |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 16 | 0.773 | 0.048 | 0.070 | 0.082 | 20,471 |
-| 32 | 0.868 | 0.077 | 0.105 | 0.121 | 12,992 |
-| 64 | 0.932 | 0.135 | 0.177 | 0.215 | 7,457 |
-| 128 | 0.966 | 0.239 | 0.305 | 0.329 | 4,343 |
-| 256 | 0.983 | 0.416 | 0.536 | 0.578 | 2,483 |
-
-Index construction took 525 s (about 1,900 inserts/s on one thread). Peak
-process memory grew from 561 MiB (dataset loaded) to 1,314 MiB after the build.
-Latency is the full Python-to-C++ call for one query. No comparison with other
-libraries is implied by this table; compare only runs with the same hardware,
-dataset and parameters.
-
-### Comparison with hnswlib
-
+build, Python 3.14, NumPy 2.5, hnswlib 0.8.0. 1,000,000 base vectors, 10,000
+queries, k=10, `M=16`, `ef_construction=200`, deterministic levels (seed 42).
 `--engines minivec,hnswlib` builds both libraries on identical data with the
-same `M`, `ef_construction` and `ef_search` values, one build thread and one
-query per call on one thread, using the same timing loop. Both latencies
-include Python call overhead. Plot a report with
-`python scripts/plot_recall_qps.py report.json -o plot.png`.
-
-SIFT1M, same machine and settings as above, hnswlib 0.8.0, 2026-10-10
-([raw JSON](benchmark-results/2026-10-10-sift1m-compare.json)):
+same parameters, one build thread and one query per call on one thread, using
+the same timing loop; both latencies include Python call overhead. Raw data:
+[2026-10-10-sift1m-compare.json](benchmark-results/2026-10-10-sift1m-compare.json).
 
 ![Recall@10 vs single-thread QPS on SIFT1M](images/sift1m-recall-qps.png)
 
-| ef_search | MiniVec Recall@10 | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
-| ---: | ---: | ---: | ---: | ---: |
-| 16 | 0.773 | 17,598 | 0.802 | 19,671 |
-| 32 | 0.868 | 12,327 | 0.904 | 12,031 |
-| 64 | 0.932 | 7,756 | 0.964 | 7,209 |
-| 128 | 0.966 | 4,278 | 0.989 | 4,057 |
-| 256 | 0.983 | 2,404 | 0.997 | 2,265 |
+| ef_search | MiniVec Recall@10 | MiniVec p50 / p99 (ms) | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 0.802 | 0.044 / 0.071 | 22,260 | 0.802 | 19,842 |
+| 32 | 0.904 | 0.074 / 0.108 | 13,606 | 0.904 | 12,533 |
+| 64 | 0.964 | 0.131 / 0.363 | 7,473 | 0.964 | 7,386 |
+| 128 | 0.989 | 0.240 / 0.327 | 4,255 | 0.989 | 4,053 |
+| 256 | 0.997 | 0.441 / 0.635 | 2,314 | 0.997 | 2,259 |
 
-Build time was 430 s for MiniVec and 341 s for hnswlib. At equal recall
-hnswlib is faster: around recall 0.965 it serves about 7,200 QPS (ef=64)
-where MiniVec needs ef=128 and serves about 4,300 QPS. MiniVec's graph reaches
-lower recall for the same search breadth, so closing that gap is a graph
-construction question rather than a distance-kernel one.
+Index construction took 285 s for MiniVec and 344 s for hnswlib. MiniVec's peak
+process memory grew from 561 MiB (dataset loaded) to 1,263 MiB after the build.
+The two graphs reach the same recall at each `ef_search`; single-thread QPS
+differences of this size are within run-to-run noise on a laptop. Plot a report
+with `python scripts/plot_recall_qps.py report.json -o plot.png`.
 
 ## Synthetic data
 

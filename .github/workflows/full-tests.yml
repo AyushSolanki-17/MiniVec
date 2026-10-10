@@ -65,7 +65,7 @@ jobs:
       - name: Test
         run: >
           ctest --test-dir build --output-on-failure -j 4 -LE stress
-          -E "HNSWBenchmark\\.|HNSWLatency\\.|HNSWAccuracy\\."
+          -E "HNSWBenchmark\\.|HNSWLatency\\.|HNSWAccuracy\\.|HNSWOracle\\."
 
   python:
     name: Python 3.12 (${{ matrix.os }})

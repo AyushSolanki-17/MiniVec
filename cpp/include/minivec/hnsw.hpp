@@ -99,7 +99,8 @@ namespace minivec
             const float *query,
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates,
             int k,
-            bool diversity);
+            bool diversity,
+            bool backfill = true);
 
     public:
         // Constructs an HNSWIndexSimple with the given dimensionality and parameters.

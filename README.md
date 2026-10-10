@@ -230,19 +230,19 @@ Instrumentation is available in **C++** and through the Python `search_with_stat
 
 SIFT1M (1,000,000 × 128-dim vectors, 10,000 queries), `M=16`,
 `ef_construction=200`, single-threaded build and queries through the Python API,
-Apple M5 (16 GB), macOS 26.6, commit `e744737`, measured 2026-10-10 alongside
+Apple M5 (16 GB), macOS 26.6, commit `b0f3ae0`, measured 2026-10-10 alongside
 hnswlib 0.8.0 on the same machine:
 
 | ef_search | MiniVec Recall@10 | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
 | ---: | ---: | ---: | ---: | ---: |
-| 32 | 0.868 | 12,327 | 0.904 | 12,031 |
-| 128 | 0.966 | 4,278 | 0.989 | 4,057 |
-| 256 | 0.983 | 2,404 | 0.997 | 2,265 |
+| 32 | 0.904 | 13,606 | 0.904 | 12,533 |
+| 128 | 0.989 | 4,255 | 0.989 | 4,053 |
+| 256 | 0.997 | 2,314 | 0.997 | 2,259 |
 
-hnswlib reaches higher recall at the same `ef_search`, so at equal recall it is
-currently faster (about 7,200 vs 4,300 QPS near 0.965 recall@10). Full sweep,
-plot and caveats are in [`docs/benchmarks.md`](docs/benchmarks.md); raw results
-are in [`docs/benchmark-results/2026-10-10-sift1m-compare.json`](docs/benchmark-results/2026-10-10-sift1m-compare.json).
+Both libraries reach the same recall at each `ef_search` with similar
+single-thread throughput; MiniVec built the index in 285 s versus 344 s. Full
+sweep, plot and caveats are in [`docs/benchmarks.md`](docs/benchmarks.md); raw
+results are in [`docs/benchmark-results/2026-10-10-sift1m-compare.json`](docs/benchmark-results/2026-10-10-sift1m-compare.json).
 
 Reproduce:
 
