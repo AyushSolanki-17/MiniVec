@@ -150,9 +150,16 @@ if (MINIVEC_BUILD_TESTS)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
         )
 
+        # Stress tests are long-running and excluded from default runs (ctest -LE stress).
+        if (test_name STREQUAL "test_hnsw_stress")
+            set(test_label "stress")
+        else()
+            set(test_label "unit")
+        endif()
+
         gtest_discover_tests(${test_name}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            PROPERTIES LABELS "unit"
+            PROPERTIES LABELS ${test_label}
         )
     endforeach()
 endif()

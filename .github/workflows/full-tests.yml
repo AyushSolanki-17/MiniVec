@@ -67,6 +67,11 @@ jobs:
           ctest --test-dir build --output-on-failure -j 4 -LE stress
           -E "HNSWBenchmark\\.|HNSWLatency\\.|HNSWAccuracy\\.|HNSWOracle\\."
 
+      # 8 writers and 8 readers on one index, repeated to shake out races.
+      - name: Concurrency stress
+        if: matrix.sanitizer == 'thread'
+        run: ctest --test-dir build --output-on-failure -L stress --repeat until-fail:3
+
   python:
     name: Python 3.12 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
