@@ -246,7 +246,9 @@ namespace minivec
         // Sort by increasing distance to the node.
         std::sort(candidates.begin(), candidates.end(), candidate_distance_less);
 
-        int pool = std::min<int>((int)candidates.size(), std::max<int>(M * 2, (int)M + 8));
+        // Consider every current neighbor: the farthest one is often the only
+        // long-range edge, and dropping it unconditionally disconnects clusters.
+        const int pool = static_cast<int>(candidates.size());
 
         // Diversity-based selection.
         std::vector<NodeId> selected;
@@ -282,17 +284,9 @@ namespace minivec
             }
         }
 
-        // Fallback: if diversity too strict, fill remaining slots with nearest unused candidates.
-        if ((int)selected.size() < max_neighbors)
-        {
-            for (int i = 0; i < pool && (int)selected.size() < max_neighbors; ++i)
-            {
-                NodeId cand_id = candidates[i].id;
-                // add if not already selected
-                if (std::find(selected.begin(), selected.end(), cand_id) == selected.end())
-                    selected.push_back(cand_id);
-            }
-        }
+        // No backfill with the nearest rejected candidates: refilling open
+        // slots with redundant short edges crowds out the diverse long-range
+        // edges that keep the layer connected (matches the reference HNSW).
 
         NodeId n_nodes = static_cast<NodeId>(nodes.size());
 
@@ -370,8 +364,10 @@ namespace minivec
         {
             std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> neighbors_pq =
                 ef_search_layer_unlocked(vec_vals, current, layer, efConstruction, nullptr);
-            const int max_neighbors = layer == 0 ? 2 * M : M;
-            std::vector<Candidate> neighbors = filter_top_k_unlocked(vec_vals, neighbors_pq, max_neighbors, true);
+            // A new node links to at most M diverse neighbors on every layer;
+            // layer 0 still lets existing nodes accumulate up to 2M edges.
+            std::vector<Candidate> neighbors =
+                filter_top_k_unlocked(vec_vals, neighbors_pq, M, /*diversity=*/true, /*backfill=*/false);
 
             for (const Candidate &neighbor : neighbors)
             {
@@ -707,7 +703,8 @@ namespace minivec
         const float *query,
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates_pq,
         int k,
-        bool diversity)
+        bool diversity,
+        bool backfill)
     {
         if (k < 0)
             throw std::invalid_argument("filter_top_k: k must not be negative");
@@ -753,9 +750,11 @@ namespace minivec
                 }
             }
             // A strict diversity test can reject every remaining candidate;
-            // fill any open slots with the nearest unselected candidates.
+            // optionally fill open slots with the nearest unselected candidates.
             for (const Candidate &candidate : candidates)
             {
+                if (!backfill)
+                    break;
                 if (static_cast<int>(top_k.size()) == k)
                     break;
                 if (std::none_of(top_k.begin(), top_k.end(), [&](const Candidate &chosen) { return chosen.id == candidate.id; }))
