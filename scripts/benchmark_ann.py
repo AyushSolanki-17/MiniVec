@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Measure recall and query latency for a deterministic MiniVec index."""
+"""Measure recall and query latency for a deterministic MiniVec index.
+
+Uses seeded Gaussian vectors by default, or an ann-benchmarks dataset with
+``--dataset`` (see scripts/datasets.py).
+"""
 
 import argparse
+import csv
 import json
 import platform
 import statistics
@@ -12,6 +17,9 @@ from pathlib import Path
 
 import numpy as np
 from minivec import MiniVecIndex
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import datasets  # noqa: E402
 
 
 def percentile(values, p):
@@ -36,6 +44,49 @@ def command_version(command):
         return None
 
 
+def peak_rss_mib():
+    try:
+        import resource
+    except ImportError:
+        return None
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is bytes on macOS and KiB on Linux.
+    return peak / (1024 * 1024) if sys.platform == "darwin" else peak / 1024
+
+
+def exact_neighbors(vectors, queries, k, batch=256):
+    """Exact squared-L2 top-k ids for each query, computed in batches."""
+    norms = np.einsum("ij,ij->i", vectors, vectors)
+    out = []
+    for start in range(0, len(queries), batch):
+        q = queries[start:start + batch]
+        dist = norms[None, :] - 2.0 * (q @ vectors.T)
+        top = np.argpartition(dist, k - 1, axis=1)[:, :k]
+        order = np.take_along_axis(dist, top, axis=1).argsort(axis=1)
+        out.extend(np.take_along_axis(top, order, axis=1))
+    return out
+
+
+def load_data(args):
+    if args.dataset is None:
+        rng = np.random.default_rng(args.seed)
+        vectors = rng.normal(size=(args.count, args.dim)).astype(np.float32)
+        queries = rng.normal(size=(args.queries, args.dim)).astype(np.float32)
+        description = "synthetic Gaussian vectors; exact squared-L2 ground truth"
+        return vectors, queries, None, "l2", description
+
+    vectors, queries, neighbors, metric = datasets.load(args.dataset, args.cache_dir)
+    if args.limit_train:
+        vectors = vectors[: args.limit_train]
+        neighbors = None  # published ground truth covers the full train set only
+    if args.limit_queries:
+        queries = queries[: args.limit_queries]
+        if neighbors is not None:
+            neighbors = neighbors[: args.limit_queries]
+    truth = "published ground truth" if neighbors is not None else "recomputed exact ground truth"
+    return vectors, queries, neighbors, metric, f"ann-benchmarks {args.dataset}; {truth}"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, default=5000, help="number of indexed vectors")
@@ -47,6 +98,17 @@ def main():
     parser.add_argument("--ef-search", type=int, nargs="+", default=[50, 100, 200])
     parser.add_argument("--seed", type=int, default=42, help="data and level-generation seed")
     parser.add_argument("--output", type=Path, help="write JSON results to this path")
+    parser.add_argument("--csv", type=Path, help="write one CSV row per ef-search value")
+    parser.add_argument(
+        "--dataset", choices=sorted(datasets.DATASETS),
+        help="use an ann-benchmarks dataset instead of synthetic vectors",
+    )
+    parser.add_argument("--cache-dir", default="data/ann", help="dataset download directory")
+    parser.add_argument("--limit-queries", type=int, help="use only the first N dataset queries")
+    parser.add_argument(
+        "--limit-train", type=int,
+        help="index only the first N dataset vectors (ground truth is recomputed)",
+    )
     args = parser.parse_args()
 
     if min(args.count, args.dim, args.queries, args.k, args.M, args.ef_construction) <= 0:
@@ -58,21 +120,30 @@ def main():
     if any(ef <= 0 for ef in args.ef_search):
         parser.error("every ef-search value must be positive")
 
-    rng = np.random.default_rng(args.seed)
-    vectors = rng.normal(size=(args.count, args.dim)).astype(np.float32)
-    queries = rng.normal(size=(args.queries, args.dim)).astype(np.float32)
+    for name in ("limit_queries", "limit_train"):
+        if getattr(args, name) is not None and getattr(args, name) <= 0:
+            parser.error(f"{name.replace('_', '-')} must be positive")
+
+    vectors, queries, neighbors, metric, description = load_data(args)
+    count, dim = vectors.shape
 
     exact_ids = []
     exact_latency_ms = []
-    for query in queries:
-        start = time.perf_counter()
-        distances = np.einsum("ij,ij->i", vectors - query, vectors - query)
-        top = np.argpartition(distances, args.k - 1)[: args.k]
-        exact_ids.append(set(top[np.argsort(distances[top])].tolist()))
-        exact_latency_ms.append((time.perf_counter() - start) * 1000)
+    if neighbors is not None:
+        exact_ids = [set(row[: args.k].tolist()) for row in neighbors]
+    elif args.dataset is not None:
+        exact_ids = [set(row.tolist()) for row in exact_neighbors(vectors, queries, args.k)]
+    else:
+        for query in queries:
+            start = time.perf_counter()
+            distances = np.einsum("ij,ij->i", vectors - query, vectors - query)
+            top = np.argpartition(distances, args.k - 1)[: args.k]
+            exact_ids.append(set(top[np.argsort(distances[top])].tolist()))
+            exact_latency_ms.append((time.perf_counter() - start) * 1000)
 
+    rss_before = peak_rss_mib()
     index = MiniVecIndex(
-        dim=args.dim,
+        dim=dim,
         M=args.M,
         ef_construction=args.ef_construction,
         ef_search=args.ef_search[0],
@@ -82,6 +153,7 @@ def main():
     build_start = time.perf_counter()
     index.add_many(vectors)
     build_seconds = time.perf_counter() - build_start
+    rss_after = peak_rss_mib()
 
     configurations = []
     for ef_search in args.ef_search:
@@ -94,20 +166,23 @@ def main():
             query_latency_ms.append((time.perf_counter() - start) * 1000)
             recall_hits += len({node_id for node_id, _ in results} & expected)
 
+        mean_ms = statistics.fmean(query_latency_ms)
         configurations.append(
             {
                 "ef_search": ef_search,
-                "recall_at_k": recall_hits / (args.queries * args.k),
+                "recall_at_k": recall_hits / (len(queries) * args.k),
                 "query_latency_ms": {
                     "p50": percentile(query_latency_ms, 50),
                     "p95": percentile(query_latency_ms, 95),
-                    "mean": statistics.fmean(query_latency_ms),
+                    "p99": percentile(query_latency_ms, 99),
+                    "mean": mean_ms,
                 },
+                "qps_single_thread": 1000.0 / mean_ms,
             }
         )
 
     report = {
-        "benchmark": "synthetic Gaussian vectors; exact squared-L2 ground truth",
+        "benchmark": description,
         "revision": git_revision(),
         "environment": {
             "platform": platform.platform(),
@@ -119,25 +194,40 @@ def main():
             "build_type": "Release",
         },
         "dataset": {
-            "count": args.count,
-            "dimension": args.dim,
-            "queries": args.queries,
+            "name": args.dataset or "synthetic-gaussian",
+            "metric": metric,
+            "count": count,
+            "dimension": dim,
+            "queries": len(queries),
             "k": args.k,
             "seed": args.seed,
         },
         "index": {"M": args.M, "ef_construction": args.ef_construction},
         "build_seconds": build_seconds,
-        "exact_search_latency_ms": {
+        "peak_rss_mib": {"before_build": rss_before, "after_build": rss_after},
+        "configurations": configurations,
+    }
+    if exact_latency_ms:
+        report["exact_search_latency_ms"] = {
             "p50": percentile(exact_latency_ms, 50),
             "p95": percentile(exact_latency_ms, 95),
             "mean": statistics.fmean(exact_latency_ms),
-        },
-        "configurations": configurations,
-    }
+        }
     rendered = json.dumps(report, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
+    if args.csv:
+        args.csv.parent.mkdir(parents=True, exist_ok=True)
+        with args.csv.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["dataset", "count", "M", "ef_construction", "ef_search", "recall_at_k",
+                             "p50_ms", "p95_ms", "p99_ms", "qps", "build_seconds"])
+            for c in configurations:
+                lat = c["query_latency_ms"]
+                writer.writerow([report["dataset"]["name"], count, args.M, args.ef_construction,
+                                 c["ef_search"], c["recall_at_k"], lat["p50"], lat["p95"],
+                                 lat["p99"], c["qps_single_thread"], build_seconds])
     print(rendered)
 
 

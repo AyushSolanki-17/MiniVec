@@ -1,0 +1,88 @@
+{
+  "benchmark": "ann-benchmarks sift-128-euclidean; published ground truth",
+  "revision": "c5716cdfa4533b5bc39499d59edc07364448cdf7",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python": "3.14.4",
+    "numpy": "2.5.3",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "cmake": "cmake version 4.4.4",
+    "build_type": "Release"
+  },
+  "dataset": {
+    "name": "sift-128-euclidean",
+    "metric": "l2",
+    "count": 1000000,
+    "dimension": 128,
+    "queries": 10000,
+    "k": 10,
+    "seed": 42
+  },
+  "index": {
+    "M": 16,
+    "ef_construction": 200
+  },
+  "build_seconds": 525.0193221249992,
+  "peak_rss_mib": {
+    "before_build": 560.859375,
+    "after_build": 1313.65625
+  },
+  "configurations": [
+    {
+      "ef_search": 16,
+      "recall_at_k": 0.77291,
+      "query_latency_ms": {
+        "p50": 0.04779199844051618,
+        "p95": 0.06975209998927309,
+        "p99": 0.08216642143452192,
+        "mean": 0.04884891810670524
+      },
+      "qps_single_thread": 20471.282451242972
+    },
+    {
+      "ef_search": 32,
+      "recall_at_k": 0.86847,
+      "query_latency_ms": {
+        "p50": 0.07737499981885776,
+        "p95": 0.10500204916752406,
+        "p99": 0.12129325148634965,
+        "mean": 0.07696968629225012
+      },
+      "qps_single_thread": 12992.127786555464
+    },
+    {
+      "ef_search": 64,
+      "recall_at_k": 0.93193,
+      "query_latency_ms": {
+        "p50": 0.13508300071407575,
+        "p95": 0.1765830002113944,
+        "p99": 0.21512708097361616,
+        "mean": 0.13409994590383575
+      },
+      "qps_single_thread": 7457.1245592978
+    },
+    {
+      "ef_search": 128,
+      "recall_at_k": 0.96597,
+      "query_latency_ms": {
+        "p50": 0.23893800062069204,
+        "p95": 0.30463540033451847,
+        "p99": 0.3294174101029057,
+        "mean": 0.23027509100102178
+      },
+      "qps_single_thread": 4342.632091264976
+    },
+    {
+      "ef_search": 256,
+      "recall_at_k": 0.98279,
+      "query_latency_ms": {
+        "p50": 0.41608300125517417,
+        "p95": 0.5364160488170455,
+        "p99": 0.5782936597643129,
+        "mean": 0.402669998190504
+      },
+      "qps_single_thread": 2483.4231616304774
+    }
+  ]
+}
