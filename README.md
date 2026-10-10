@@ -2,6 +2,7 @@
 
 **A research-oriented C++ vector search implementation with Python bindings**
 
+[![CI](https://github.com/AyushSolanki-17/MiniVec/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AyushSolanki-17/MiniVec/actions/workflows/ci.yml)
 ![C++](https://img.shields.io/badge/C++-17-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3-blue.svg)
 ![Build](https://img.shields.io/badge/Build-CMake-success.svg)
