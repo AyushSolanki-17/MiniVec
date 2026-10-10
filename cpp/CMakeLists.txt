@@ -12,6 +12,25 @@ option(MINIVEC_BUILD_PYTHON "Build the pybind11 Python extension" ON)
 option(MINIVEC_BUILD_TESTS "Build C++ unit tests" ON)
 option(MINIVEC_BUILD_BENCHMARKS "Build Google Benchmark targets" ON)
 
+# Sanitizers: "address" (ASAN + UBSAN), "thread" (TSAN), or empty for none.
+# Applied to every target defined below, including fetched test dependencies.
+set(MINIVEC_SANITIZE "" CACHE STRING "Sanitizer to build with: address, thread, or empty")
+set_property(CACHE MINIVEC_SANITIZE PROPERTY STRINGS "" address thread)
+if (MINIVEC_SANITIZE STREQUAL "address")
+    set(MINIVEC_SANITIZER_FLAGS -fsanitize=address,undefined -fno-sanitize-recover=undefined)
+elseif (MINIVEC_SANITIZE STREQUAL "thread")
+    set(MINIVEC_SANITIZER_FLAGS -fsanitize=thread)
+elseif (NOT MINIVEC_SANITIZE STREQUAL "")
+    message(FATAL_ERROR "MINIVEC_SANITIZE must be address, thread, or empty (got '${MINIVEC_SANITIZE}')")
+endif()
+if (MINIVEC_SANITIZER_FLAGS)
+    if (MSVC)
+        message(FATAL_ERROR "MINIVEC_SANITIZE is supported with GCC and Clang only")
+    endif()
+    add_compile_options(${MINIVEC_SANITIZER_FLAGS} -fno-omit-frame-pointer -g)
+    add_link_options(${MINIVEC_SANITIZER_FLAGS})
+endif()
+
 # =========================================================
 # Core library
 # =========================================================
