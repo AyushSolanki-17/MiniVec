@@ -9,7 +9,7 @@ environment; `--csv` writes one row per `ef_search` value.
 ## Real datasets (ann-benchmarks)
 
 ```bash
-python -m pip install ".[bench]"          # adds h5py
+python -m pip install ".[bench]"          # adds h5py, hnswlib, matplotlib
 python scripts/benchmark_ann.py --dataset sift-128-euclidean \
     --M 16 --ef-construction 200 --ef-search 16 32 64 128 256 \
     --output data/bench/sift1m.json --csv data/bench/sift1m.csv
@@ -43,6 +43,33 @@ process memory grew from 561 MiB (dataset loaded) to 1,314 MiB after the build.
 Latency is the full Python-to-C++ call for one query. No comparison with other
 libraries is implied by this table; compare only runs with the same hardware,
 dataset and parameters.
+
+### Comparison with hnswlib
+
+`--engines minivec,hnswlib` builds both libraries on identical data with the
+same `M`, `ef_construction` and `ef_search` values, one build thread and one
+query per call on one thread, using the same timing loop. Both latencies
+include Python call overhead. Plot a report with
+`python scripts/plot_recall_qps.py report.json -o plot.png`.
+
+SIFT1M, same machine and settings as above, hnswlib 0.8.0, 2026-10-10
+([raw JSON](benchmark-results/2026-10-10-sift1m-compare.json)):
+
+![Recall@10 vs single-thread QPS on SIFT1M](images/sift1m-recall-qps.png)
+
+| ef_search | MiniVec Recall@10 | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
+| ---: | ---: | ---: | ---: | ---: |
+| 16 | 0.773 | 17,598 | 0.802 | 19,671 |
+| 32 | 0.868 | 12,327 | 0.904 | 12,031 |
+| 64 | 0.932 | 7,756 | 0.964 | 7,209 |
+| 128 | 0.966 | 4,278 | 0.989 | 4,057 |
+| 256 | 0.983 | 2,404 | 0.997 | 2,265 |
+
+Build time was 430 s for MiniVec and 341 s for hnswlib. At equal recall
+hnswlib is faster: around recall 0.965 it serves about 7,200 QPS (ef=64)
+where MiniVec needs ef=128 and serves about 4,300 QPS. MiniVec's graph reaches
+lower recall for the same search breadth, so closing that gap is a graph
+construction question rather than a distance-kernel one.
 
 ## Synthetic data
 

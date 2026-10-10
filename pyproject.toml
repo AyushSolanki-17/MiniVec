@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-bench = ["h5py>=3.8"]
+bench = ["h5py>=3.8", "hnswlib>=0.8", "matplotlib>=3.7"]
 
 [tool.scikit-build]
 wheel.packages = ["minivec"]
