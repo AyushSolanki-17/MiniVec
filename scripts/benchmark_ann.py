@@ -67,6 +67,95 @@ def exact_neighbors(vectors, queries, k, batch=256):
     return out
 
 
+class MiniVecEngine:
+    def __init__(self, dim, args):
+        self.index = MiniVecIndex(
+            dim=dim,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            ef_search=args.ef_search[0],
+            deterministic=True,
+            seed=args.seed,
+        )
+
+    def build(self, vectors):
+        self.index.add_many(vectors)
+
+    def set_ef(self, ef):
+        self.index.set_ef_search(ef)
+
+    def search(self, query, k):
+        return {node_id for node_id, _ in self.index.search(query, k)}
+
+
+class HnswlibEngine:
+    def __init__(self, dim, args):
+        import hnswlib
+
+        self.index = hnswlib.Index(space="l2", dim=dim)
+        self.args = args
+        self.index.set_num_threads(1)
+
+    def build(self, vectors):
+        self.index.init_index(
+            max_elements=len(vectors),
+            M=self.args.M,
+            ef_construction=self.args.ef_construction,
+            random_seed=self.args.seed,
+        )
+        self.index.add_items(vectors, np.arange(len(vectors)), num_threads=1)
+
+    def set_ef(self, ef):
+        self.index.set_ef(ef)
+
+    def search(self, query, k):
+        labels, _ = self.index.knn_query(query, k=k, num_threads=1)
+        return set(labels[0].tolist())
+
+
+ENGINES = {"minivec": MiniVecEngine, "hnswlib": HnswlibEngine}
+
+
+def run_engine(engine, vectors, queries, exact_ids, args):
+    """Build once, then sweep ef_search with one query per call on one thread."""
+    rss_before = peak_rss_mib()
+    build_start = time.perf_counter()
+    engine.build(vectors)
+    build_seconds = time.perf_counter() - build_start
+    rss_after = peak_rss_mib()
+
+    configurations = []
+    for ef_search in args.ef_search:
+        engine.set_ef(ef_search)
+        query_latency_ms = []
+        recall_hits = 0
+        for query, expected in zip(queries, exact_ids):
+            start = time.perf_counter()
+            found = engine.search(query, args.k)
+            query_latency_ms.append((time.perf_counter() - start) * 1000)
+            recall_hits += len(found & expected)
+
+        mean_ms = statistics.fmean(query_latency_ms)
+        configurations.append(
+            {
+                "ef_search": ef_search,
+                "recall_at_k": recall_hits / (len(queries) * args.k),
+                "query_latency_ms": {
+                    "p50": percentile(query_latency_ms, 50),
+                    "p95": percentile(query_latency_ms, 95),
+                    "p99": percentile(query_latency_ms, 99),
+                    "mean": mean_ms,
+                },
+                "qps_single_thread": 1000.0 / mean_ms,
+            }
+        )
+    return {
+        "build_seconds": build_seconds,
+        "peak_rss_mib": {"before_build": rss_before, "after_build": rss_after},
+        "configurations": configurations,
+    }
+
+
 def load_data(args):
     if args.dataset is None:
         rng = np.random.default_rng(args.seed)
@@ -103,6 +192,10 @@ def main():
         "--dataset", choices=sorted(datasets.DATASETS),
         help="use an ann-benchmarks dataset instead of synthetic vectors",
     )
+    parser.add_argument(
+        "--engines", type=lambda v: v.split(","), default=["minivec"],
+        help="comma-separated engines to run on identical data: minivec, hnswlib",
+    )
     parser.add_argument("--cache-dir", default="data/ann", help="dataset download directory")
     parser.add_argument("--limit-queries", type=int, help="use only the first N dataset queries")
     parser.add_argument(
@@ -120,6 +213,9 @@ def main():
     if any(ef <= 0 for ef in args.ef_search):
         parser.error("every ef-search value must be positive")
 
+    unknown = sorted(set(args.engines) - set(ENGINES))
+    if unknown:
+        parser.error(f"unknown engines {unknown}; choose from {sorted(ENGINES)}")
     for name in ("limit_queries", "limit_train"):
         if getattr(args, name) is not None and getattr(args, name) <= 0:
             parser.error(f"{name.replace('_', '-')} must be positive")
@@ -141,45 +237,13 @@ def main():
             exact_ids.append(set(top[np.argsort(distances[top])].tolist()))
             exact_latency_ms.append((time.perf_counter() - start) * 1000)
 
-    rss_before = peak_rss_mib()
-    index = MiniVecIndex(
-        dim=dim,
-        M=args.M,
-        ef_construction=args.ef_construction,
-        ef_search=args.ef_search[0],
-        deterministic=True,
-        seed=args.seed,
-    )
-    build_start = time.perf_counter()
-    index.add_many(vectors)
-    build_seconds = time.perf_counter() - build_start
-    rss_after = peak_rss_mib()
-
-    configurations = []
-    for ef_search in args.ef_search:
-        index.set_ef_search(ef_search)
-        query_latency_ms = []
-        recall_hits = 0
-        for query, expected in zip(queries, exact_ids):
-            start = time.perf_counter()
-            results = index.search(query, args.k)
-            query_latency_ms.append((time.perf_counter() - start) * 1000)
-            recall_hits += len({node_id for node_id, _ in results} & expected)
-
-        mean_ms = statistics.fmean(query_latency_ms)
-        configurations.append(
-            {
-                "ef_search": ef_search,
-                "recall_at_k": recall_hits / (len(queries) * args.k),
-                "query_latency_ms": {
-                    "p50": percentile(query_latency_ms, 50),
-                    "p95": percentile(query_latency_ms, 95),
-                    "p99": percentile(query_latency_ms, 99),
-                    "mean": mean_ms,
-                },
-                "qps_single_thread": 1000.0 / mean_ms,
-            }
-        )
+    results = {}
+    for name in args.engines:
+        results[name] = run_engine(ENGINES[name](dim, args), vectors, queries, exact_ids, args)
+        if name != args.engines[0]:
+            # Peak RSS never decreases, so only the first engine's growth is meaningful.
+            results[name]["peak_rss_mib"] = None
+    primary = results[args.engines[0]]
 
     report = {
         "benchmark": description,
@@ -203,9 +267,10 @@ def main():
             "seed": args.seed,
         },
         "index": {"M": args.M, "ef_construction": args.ef_construction},
-        "build_seconds": build_seconds,
-        "peak_rss_mib": {"before_build": rss_before, "after_build": rss_after},
-        "configurations": configurations,
+        "build_seconds": primary["build_seconds"],
+        "peak_rss_mib": primary["peak_rss_mib"],
+        "configurations": primary["configurations"],
+        "engines": results,
     }
     if exact_latency_ms:
         report["exact_search_latency_ms"] = {
@@ -221,13 +286,15 @@ def main():
         args.csv.parent.mkdir(parents=True, exist_ok=True)
         with args.csv.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["dataset", "count", "M", "ef_construction", "ef_search", "recall_at_k",
-                             "p50_ms", "p95_ms", "p99_ms", "qps", "build_seconds"])
-            for c in configurations:
-                lat = c["query_latency_ms"]
-                writer.writerow([report["dataset"]["name"], count, args.M, args.ef_construction,
-                                 c["ef_search"], c["recall_at_k"], lat["p50"], lat["p95"],
-                                 lat["p99"], c["qps_single_thread"], build_seconds])
+            writer.writerow(["engine", "dataset", "count", "M", "ef_construction", "ef_search",
+                             "recall_at_k", "p50_ms", "p95_ms", "p99_ms", "qps", "build_seconds"])
+            for name, result in results.items():
+                for c in result["configurations"]:
+                    lat = c["query_latency_ms"]
+                    writer.writerow([name, report["dataset"]["name"], count, args.M,
+                                     args.ef_construction, c["ef_search"], c["recall_at_k"],
+                                     lat["p50"], lat["p95"], lat["p99"], c["qps_single_thread"],
+                                     result["build_seconds"]])
     print(rendered)
 
 

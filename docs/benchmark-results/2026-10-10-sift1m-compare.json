@@ -1,0 +1,215 @@
+{
+  "benchmark": "ann-benchmarks sift-128-euclidean; published ground truth",
+  "revision": "e744737eadf2bf91ff80070f9d0702f77f9f4306",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python": "3.14.4",
+    "numpy": "2.5.3",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "cmake": "cmake version 4.4.4",
+    "build_type": "Release"
+  },
+  "dataset": {
+    "name": "sift-128-euclidean",
+    "metric": "l2",
+    "count": 1000000,
+    "dimension": 128,
+    "queries": 10000,
+    "k": 10,
+    "seed": 42
+  },
+  "index": {
+    "M": 16,
+    "ef_construction": 200
+  },
+  "build_seconds": 430.1471058750012,
+  "peak_rss_mib": {
+    "before_build": 561.34375,
+    "after_build": 1279.5625
+  },
+  "configurations": [
+    {
+      "ef_search": 16,
+      "recall_at_k": 0.77291,
+      "query_latency_ms": {
+        "p50": 0.05554100061999634,
+        "p95": 0.08137709937727775,
+        "p99": 0.09758342073837413,
+        "mean": 0.05682601119551691
+      },
+      "qps_single_thread": 17597.57510621987
+    },
+    {
+      "ef_search": 32,
+      "recall_at_k": 0.86847,
+      "query_latency_ms": {
+        "p50": 0.08154200077115092,
+        "p95": 0.11092115073552117,
+        "p99": 0.12879283040092562,
+        "mean": 0.08112088570032938
+      },
+      "qps_single_thread": 12327.281579421162
+    },
+    {
+      "ef_search": 64,
+      "recall_at_k": 0.93193,
+      "query_latency_ms": {
+        "p50": 0.13270799900055863,
+        "p95": 0.16858509934536411,
+        "p99": 0.1879190812906018,
+        "mean": 0.12892633090232267
+      },
+      "qps_single_thread": 7756.367477467588
+    },
+    {
+      "ef_search": 128,
+      "recall_at_k": 0.96597,
+      "query_latency_ms": {
+        "p50": 0.2413749989500502,
+        "p95": 0.3097080489169457,
+        "p99": 0.33537583985889796,
+        "mean": 0.23376028339716867
+      },
+      "qps_single_thread": 4277.886668630348
+    },
+    {
+      "ef_search": 256,
+      "recall_at_k": 0.98279,
+      "query_latency_ms": {
+        "p50": 0.42802100051630987,
+        "p95": 0.56205239980045,
+        "p99": 0.6069178312645818,
+        "mean": 0.4159489875924919
+      },
+      "qps_single_thread": 2404.1409639869275
+    }
+  ],
+  "engines": {
+    "minivec": {
+      "build_seconds": 430.1471058750012,
+      "peak_rss_mib": {
+        "before_build": 561.34375,
+        "after_build": 1279.5625
+      },
+      "configurations": [
+        {
+          "ef_search": 16,
+          "recall_at_k": 0.77291,
+          "query_latency_ms": {
+            "p50": 0.05554100061999634,
+            "p95": 0.08137709937727775,
+            "p99": 0.09758342073837413,
+            "mean": 0.05682601119551691
+          },
+          "qps_single_thread": 17597.57510621987
+        },
+        {
+          "ef_search": 32,
+          "recall_at_k": 0.86847,
+          "query_latency_ms": {
+            "p50": 0.08154200077115092,
+            "p95": 0.11092115073552117,
+            "p99": 0.12879283040092562,
+            "mean": 0.08112088570032938
+          },
+          "qps_single_thread": 12327.281579421162
+        },
+        {
+          "ef_search": 64,
+          "recall_at_k": 0.93193,
+          "query_latency_ms": {
+            "p50": 0.13270799900055863,
+            "p95": 0.16858509934536411,
+            "p99": 0.1879190812906018,
+            "mean": 0.12892633090232267
+          },
+          "qps_single_thread": 7756.367477467588
+        },
+        {
+          "ef_search": 128,
+          "recall_at_k": 0.96597,
+          "query_latency_ms": {
+            "p50": 0.2413749989500502,
+            "p95": 0.3097080489169457,
+            "p99": 0.33537583985889796,
+            "mean": 0.23376028339716867
+          },
+          "qps_single_thread": 4277.886668630348
+        },
+        {
+          "ef_search": 256,
+          "recall_at_k": 0.98279,
+          "query_latency_ms": {
+            "p50": 0.42802100051630987,
+            "p95": 0.56205239980045,
+            "p99": 0.6069178312645818,
+            "mean": 0.4159489875924919
+          },
+          "qps_single_thread": 2404.1409639869275
+        }
+      ]
+    },
+    "hnswlib": {
+      "build_seconds": 340.6861733330006,
+      "peak_rss_mib": null,
+      "configurations": [
+        {
+          "ef_search": 16,
+          "recall_at_k": 0.80183,
+          "query_latency_ms": {
+            "p50": 0.05020800017518923,
+            "p95": 0.06966905120862063,
+            "p99": 0.08150084031512962,
+            "mean": 0.050836358197921074
+          },
+          "qps_single_thread": 19670.96061654736
+        },
+        {
+          "ef_search": 32,
+          "recall_at_k": 0.90433,
+          "query_latency_ms": {
+            "p50": 0.08383400017919485,
+            "p95": 0.10862499948416371,
+            "p99": 0.12379282870824683,
+            "mean": 0.08311819781083614
+          },
+          "qps_single_thread": 12031.059699776477
+        },
+        {
+          "ef_search": 64,
+          "recall_at_k": 0.96372,
+          "query_latency_ms": {
+            "p50": 0.1428125005986658,
+            "p95": 0.1750840001477627,
+            "p99": 0.18991783017554556,
+            "mean": 0.13872161741346645
+          },
+          "qps_single_thread": 7208.681809263022
+        },
+        {
+          "ef_search": 128,
+          "recall_at_k": 0.98929,
+          "query_latency_ms": {
+            "p50": 0.2548749998823041,
+            "p95": 0.31437500001629815,
+            "p99": 0.33754200012481306,
+            "mean": 0.24648145959781687
+          },
+          "qps_single_thread": 4057.10028507498
+        },
+        {
+          "ef_search": 256,
+          "recall_at_k": 0.99732,
+          "query_latency_ms": {
+            "p50": 0.4585625001709559,
+            "p95": 0.5708791495635522,
+            "p99": 0.6140016704921436,
+            "mean": 0.441533108310432
+          },
+          "qps_single_thread": 2264.8358213194797
+        }
+      ]
+    }
+  }
+}
