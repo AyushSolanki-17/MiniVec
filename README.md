@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3-blue.svg)
 ![Build](https://img.shields.io/badge/Build-CMake-success.svg)
 
-**Status: pre-alpha.** APIs and performance characteristics may change.
+> **Status: pre-alpha, research-grade.** APIs, file formats and performance characteristics will change without notice. Don't use it in production yet.
 
 ---
 
@@ -226,7 +226,34 @@ Instrumentation is available in **C++** and through the Python `search_with_stat
 
 ## 📈 Benchmarking
 
-The standalone reproducible recall/latency workflow and a sample run are documented in [`docs/benchmarks.md`](docs/benchmarks.md). The C++ benchmark target is in `cpp/benchmarks/`. Compare results only when dataset, parameters, hardware, build options, and baseline implementation are recorded.
+### Measured performance
+
+SIFT1M (1,000,000 × 128-dim vectors, 10,000 queries), `M=16`,
+`ef_construction=200`, single-threaded build and queries through the Python API,
+Apple M5 (16 GB), macOS 26.6, commit `e744737`, measured 2026-10-10 alongside
+hnswlib 0.8.0 on the same machine:
+
+| ef_search | MiniVec Recall@10 | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 0.868 | 12,327 | 0.904 | 12,031 |
+| 128 | 0.966 | 4,278 | 0.989 | 4,057 |
+| 256 | 0.983 | 2,404 | 0.997 | 2,265 |
+
+hnswlib reaches higher recall at the same `ef_search`, so at equal recall it is
+currently faster (about 7,200 vs 4,300 QPS near 0.965 recall@10). Full sweep,
+plot and caveats are in [`docs/benchmarks.md`](docs/benchmarks.md); raw results
+are in [`docs/benchmark-results/2026-10-10-sift1m-compare.json`](docs/benchmark-results/2026-10-10-sift1m-compare.json).
+
+Reproduce:
+
+```bash
+python -m pip install ".[bench]"
+python scripts/benchmark_ann.py --dataset sift-128-euclidean --engines minivec,hnswlib \
+    --M 16 --ef-construction 200 --ef-search 16 32 64 128 256 --output sift1m.json
+```
+
+The C++ microbenchmark target is in `cpp/benchmarks/`. Compare results only when
+dataset, parameters, hardware, build options and baseline implementation match.
 
 ---
 
