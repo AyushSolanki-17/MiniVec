@@ -94,12 +94,29 @@ namespace minivec
         return id;
     }
 
-    NodeId HNSWIndexSimple::add_node_unlocked(const float *vec_vals, int layer)
+    NodeId HNSWIndexSimple::add_node_unlocked(
+        const float *vec_vals,
+        int layer,
+        const std::unordered_map<std::string, std::int64_t> &attrs)
     {
         if (layer < 0 || layer > layer_gen.max_level())
             throw std::invalid_argument("add_node: layer is outside the supported range");
         if (nodes.size() >= static_cast<size_t>(std::numeric_limits<NodeId>::max()))
             throw std::length_error("HNSWIndexSimple: node ID capacity exhausted");
+
+        for (const auto &entry : attrs)
+        {
+            if (entry.first.empty())
+                throw std::invalid_argument("attribute names must not be empty");
+            if (attributes.find(entry.first) == attributes.end())
+            {
+                std::vector<std::optional<std::int64_t>> column(nodes.size());
+                attributes.emplace(entry.first, std::move(column));
+            }
+        }
+        for (auto &entry : attributes)
+            entry.second.reserve(nodes.size() + 1);
+
         auto node = std::make_unique<HNSWNodeSimple>(static_cast<NodeId>(nodes.size()), layer + 1, M);
         NodeId id = store.add(vec_vals);
 
@@ -121,6 +138,13 @@ namespace minivec
         {
             store.pop_back();
             throw;
+        }
+        for (auto &entry : attributes)
+        {
+            const auto value = attrs.find(entry.first);
+            entry.second.emplace_back(value == attrs.end()
+                                          ? std::optional<std::int64_t>{}
+                                          : std::optional<std::int64_t>{value->second});
         }
         if (entry_point == -1)
         {
@@ -323,6 +347,13 @@ namespace minivec
     //   The id of the inserted node.
     NodeId HNSWIndexSimple::insert_vector(const float *vec_vals)
     {
+        return insert_vector(vec_vals, {});
+    }
+
+    NodeId HNSWIndexSimple::insert_vector(
+        const float *vec_vals,
+        const std::unordered_map<std::string, std::int64_t> &attrs)
+    {
         validate_vector(vec_vals, dim, "insert_vector");
         std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
         int new_layer = layer_gen.getRandomLayer();
@@ -333,7 +364,7 @@ namespace minivec
         int local_max_layer;
         {
             std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
-            id = add_node_unlocked(vec_vals, new_layer);
+            id = add_node_unlocked(vec_vals, new_layer, attrs);
             if (nodes.size() == 1)
             {
                 entry_point = id;
@@ -816,9 +847,89 @@ namespace minivec
         std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
         store.clear();
         nodes.clear();
+        attributes.clear();
         entry_point = -1;
         max_layer = -1;
         layer_gen.reset();
+    }
+
+    void HNSWIndexSimple::set_attribute(NodeId id, const std::string &name, std::int64_t value)
+    {
+        if (name.empty())
+            throw std::invalid_argument("attribute names must not be empty");
+        std::lock_guard<std::mutex> mutation_lock(mutation_mtx);
+        std::unique_lock<std::shared_mutex> idx_lock(index_mtx);
+        throw_if_invalid_node_id(nodes, id, "set_attribute");
+        auto found = attributes.find(name);
+        if (found == attributes.end())
+        {
+            std::vector<std::optional<std::int64_t>> column(nodes.size());
+            found = attributes.emplace(name, std::move(column)).first;
+        }
+        found->second[static_cast<size_t>(id)] = value;
+    }
+
+    HNSWIndexSimple::BitmapResult HNSWIndexSimple::attribute_eq(
+        const std::string &name, std::int64_t value) const
+    {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        BitmapResult result;
+        result.words.resize((nodes.size() + 63) / 64, 0);
+        const auto found = attributes.find(name);
+        if (found == attributes.end())
+            return result;
+        for (size_t id = 0; id < found->second.size(); ++id)
+        {
+            if (found->second[id] && *found->second[id] == value)
+            {
+                result.words[id / 64] |= std::uint64_t{1} << (id % 64);
+                ++result.count;
+            }
+        }
+        return result;
+    }
+
+    HNSWIndexSimple::BitmapResult HNSWIndexSimple::attribute_in(
+        const std::string &name, const std::vector<std::int64_t> &values) const
+    {
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        BitmapResult result;
+        result.words.resize((nodes.size() + 63) / 64, 0);
+        const auto found = attributes.find(name);
+        if (found == attributes.end() || values.empty())
+            return result;
+        for (size_t id = 0; id < found->second.size(); ++id)
+        {
+            if (found->second[id] &&
+                std::find(values.begin(), values.end(), *found->second[id]) != values.end())
+            {
+                result.words[id / 64] |= std::uint64_t{1} << (id % 64);
+                ++result.count;
+            }
+        }
+        return result;
+    }
+
+    HNSWIndexSimple::BitmapResult HNSWIndexSimple::attribute_range(
+        const std::string &name, std::int64_t minimum, std::int64_t maximum) const
+    {
+        if (minimum > maximum)
+            throw std::invalid_argument("attribute range minimum must not exceed maximum");
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        BitmapResult result;
+        result.words.resize((nodes.size() + 63) / 64, 0);
+        const auto found = attributes.find(name);
+        if (found == attributes.end())
+            return result;
+        for (size_t id = 0; id < found->second.size(); ++id)
+        {
+            if (found->second[id] && *found->second[id] >= minimum && *found->second[id] <= maximum)
+            {
+                result.words[id / 64] |= std::uint64_t{1} << (id % 64);
+                ++result.count;
+            }
+        }
+        return result;
     }
 
     // Thread-safe helper: copy neighbors for node node_id at given layer.

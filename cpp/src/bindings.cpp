@@ -8,6 +8,7 @@
 #include <pybind11/numpy.h>
 #include <cstring>
 #include <vector>
+#include <unordered_map>
 
 #include "minivec/utils.hpp"
 #include "minivec/hnsw.hpp"
@@ -62,19 +63,25 @@ PYBIND11_MODULE(minivec_cpp, m)
              py::arg("final_distance") = "l2")
 
         // -------- insertion --------
-        .def("insert_vector", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec)
+        .def("insert_vector", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec,
+                                  const std::unordered_map<std::string, std::int64_t> &attrs)
              {
                  auto ptr = numpy_to_ptr(vec, index.get_vector_dim());
                  std::vector<float> owned(ptr, ptr + index.get_vector_dim());
                  minivec::NodeId id;
-                 { py::gil_scoped_release release; id = index.insert_vector(owned.data()); }
-                 return id; }, py::arg("vector"))
+                 { py::gil_scoped_release release; id = index.insert_vector(owned.data(), attrs); }
+                 return id; }, py::arg("vector"), py::arg("attrs") = std::unordered_map<std::string, std::int64_t>{})
 
-        .def("insert_vectors", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vectors)
+        .def("insert_vectors", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vectors,
+                                  std::vector<std::unordered_map<std::string, std::int64_t>> attrs)
              {
                  if (vectors.ndim() != 2 || vectors.shape(1) != index.get_vector_dim())
                      throw py::value_error("Vectors must be a 2D array with the index dimension.");
                  const auto rows = vectors.shape(0);
+                 if (attrs.empty())
+                     attrs.resize(static_cast<size_t>(rows));
+                 else if (attrs.size() != static_cast<size_t>(rows))
+                     throw py::value_error("attrs must contain one mapping per vector.");
                  const auto dim = vectors.shape(1);
                  const float *data = vectors.data();
                  std::vector<float> owned;
@@ -85,9 +92,27 @@ PYBIND11_MODULE(minivec_cpp, m)
                  {
                      py::gil_scoped_release release;
                      for (py::ssize_t row = 0; row < rows; ++row)
-                         ids.push_back(index.insert_vector(owned.data() + row * dim));
+                         ids.push_back(index.insert_vector(owned.data() + row * dim, attrs[static_cast<size_t>(row)]));
                  }
-                 return ids; }, py::arg("vectors"))
+                 return ids; }, py::arg("vectors"),
+                 py::arg("attrs") = std::vector<std::unordered_map<std::string, std::int64_t>>{})
+
+        .def("set_attribute", &minivec::HNSWIndexSimple::set_attribute,
+             py::arg("id"), py::arg("name"), py::arg("value"))
+        .def("attribute_eq", [](const minivec::HNSWIndexSimple &index, const std::string &name, std::int64_t value) {
+            auto result = index.attribute_eq(name, value);
+            return py::make_tuple(result.words, result.count);
+        }, py::arg("name"), py::arg("value"))
+        .def("attribute_in", [](const minivec::HNSWIndexSimple &index, const std::string &name,
+                                 const std::vector<std::int64_t> &values) {
+            auto result = index.attribute_in(name, values);
+            return py::make_tuple(result.words, result.count);
+        }, py::arg("name"), py::arg("values"))
+        .def("attribute_range", [](const minivec::HNSWIndexSimple &index, const std::string &name,
+                                    std::int64_t minimum, std::int64_t maximum) {
+            auto result = index.attribute_range(name, minimum, maximum);
+            return py::make_tuple(result.words, result.count);
+        }, py::arg("name"), py::arg("minimum"), py::arg("maximum"))
 
         // -------- search (no stats) --------
         .def("search", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> vec, int k)
