@@ -236,6 +236,56 @@ class MiniVecIndex:
         results, stats = self._index.search_with_stats(q, _non_negative_k(k))
         return results, dict(stats)
 
+    def search_filtered(
+        self,
+        query: np.ndarray,
+        k: int,
+        bitmap: Tuple[List[int], int],
+        strategy: str = "filtered_traversal",
+        expansion_factor: int = 4,
+    ) -> Tuple[List[Tuple[int, float]], Dict[str, object]]:
+        """Search a predicate bitmap with brute force, filtered traversal, or post-filtering.
+
+        ``bitmap`` is the ``(words, count)`` tuple returned by an attribute predicate.
+        ``post_filter`` searches with ``ef_search * expansion_factor`` before filtering.
+        """
+        q = np.asarray(query, dtype=np.float32)
+        if q.ndim != 1 or q.shape[0] != self.dim:
+            raise ValueError(f"Expected query of shape ({self.dim},), got {q.shape}")
+        if not np.isfinite(q).all():
+            raise ValueError("Query values must all be finite")
+        if strategy not in {"brute_force", "filtered_traversal", "post_filter"}:
+            raise ValueError("strategy must be brute_force, filtered_traversal, or post_filter")
+        if isinstance(expansion_factor, (bool, np.bool_)) or not isinstance(
+            expansion_factor, (int, np.integer)
+        ):
+            raise TypeError("expansion_factor must be a positive integer")
+        if expansion_factor <= 0 or expansion_factor > _C_INT_MAX:
+            raise ValueError("expansion_factor must be a positive integer")
+        if (not isinstance(bitmap, tuple) or len(bitmap) != 2 or
+                not isinstance(bitmap[0], Sequence)):
+            raise TypeError("bitmap must be the (words, count) result of an attribute predicate")
+        words = []
+        for word in bitmap[0]:
+            if isinstance(word, (bool, np.bool_)):
+                raise TypeError("bitmap words must be unsigned 64-bit integers")
+            try:
+                normalized = integer_index(word)
+            except TypeError as exc:
+                raise TypeError("bitmap words must be unsigned 64-bit integers") from exc
+            if normalized < 0 or normalized >= 2**64:
+                raise ValueError("bitmap words must fit in unsigned 64-bit integers")
+            words.append(normalized)
+        results, stats = self._index.search_filtered(
+            q,
+            _non_negative_k(k),
+            words,
+            strategy,
+            0,
+            int(expansion_factor),
+        )
+        return results, dict(stats)
+
     def add_many(
         self,
         vectors: np.ndarray,

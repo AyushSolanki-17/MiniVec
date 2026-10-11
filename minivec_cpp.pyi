@@ -23,6 +23,8 @@ class SearchStats:
     layer_visits: Dict[int, int]
     candidate_queue_stability: float
     result_distance_gaps: List[float]
+    search_strategy: str
+    filter_rejected_candidates: int
 
     def __init__(self) -> None: ...
 
@@ -75,6 +77,16 @@ class HNSWIndexSimple:
         self,
         query: np.ndarray,
         k: int,
+    ) -> Tuple[List[Tuple[int, float]], Dict[str, object]]: ...
+
+    def search_filtered(
+        self,
+        query: np.ndarray,
+        k: int,
+        bitmap: List[int],
+        strategy: str,
+        ef: int = 0,
+        expansion_factor: int = 4,
     ) -> Tuple[List[Tuple[int, float]], Dict[str, object]]: ...
 
     def search_batch(

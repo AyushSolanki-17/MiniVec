@@ -287,6 +287,17 @@ namespace minivec
         //   nearest neighbors, typically sorted by increasing distance.
         std::vector<Candidate> search_top_k(const float *query, int ef, int k, SearchStats* stats = nullptr);
 
+        // Search within a predicate bitmap using brute force, filtered graph traversal,
+        // or post-filtered over-fetch. Bitmap bit i corresponds to node ID i.
+        std::vector<Candidate> search_filtered_top_k(
+            const float *query,
+            int ef,
+            int k,
+            const std::vector<std::uint64_t> &filter_bitmap,
+            const std::string &strategy,
+            int expansion_factor = 4,
+            SearchStats *stats = nullptr);
+
         // Filters the candidate set to produce the final top-k results.
         //
         // Args:

@@ -44,7 +44,9 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def_readwrite("hops_per_layer", &minivec::SearchStats::hops_per_layer)
         .def_readwrite("candidate_queue_stability", &minivec::SearchStats::candidate_queue_stability)
         .def_readwrite("result_distance_gaps", &minivec::SearchStats::result_distance_gaps)
-        .def_readwrite("layer_visits", &minivec::SearchStats::layer_visits);
+        .def_readwrite("layer_visits", &minivec::SearchStats::layer_visits)
+        .def_readwrite("search_strategy", &minivec::SearchStats::search_strategy)
+        .def_readwrite("filter_rejected_candidates", &minivec::SearchStats::filter_rejected_candidates);
 
     // ---------------- HNSWIndexSimple binding ----------------
     py::class_<minivec::HNSWIndexSimple>(m, "HNSWIndexSimple")
@@ -154,8 +156,44 @@ PYBIND11_MODULE(minivec_cpp, m)
          stats_dict["candidate_queue_stability"] = stats.candidate_queue_stability;
          stats_dict["result_distance_gaps"] = stats.result_distance_gaps;
          stats_dict["layer_visits"] = stats.layer_visits;
+         stats_dict["search_strategy"] = stats.search_strategy;
+         stats_dict["filter_rejected_candidates"] = stats.filter_rejected_candidates;
 
          return py::make_tuple(out, stats_dict); }, py::arg("query"), py::arg("k"))
+
+        .def("search_filtered", [](minivec::HNSWIndexSimple &index,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> vec,
+                                    int k,
+                                    const std::vector<std::uint64_t> &bitmap,
+                                    const std::string &strategy,
+                                    int ef,
+                                    int expansion_factor)
+             {
+                 auto ptr = numpy_to_ptr(vec, index.get_vector_dim());
+                 std::vector<float> owned(ptr, ptr + index.get_vector_dim());
+                 minivec::SearchStats stats;
+                 std::vector<minivec::Candidate> results;
+                 {
+                     py::gil_scoped_release release;
+                     results = index.search_filtered_top_k(
+                         owned.data(), ef, k, bitmap, strategy, expansion_factor, &stats);
+                 }
+                 py::list out;
+                 for (const auto &candidate : results)
+                     out.append(py::make_tuple(candidate.id, candidate.distance));
+                 py::dict stats_dict;
+                 stats_dict["visited_nodes"] = stats.visited_nodes;
+                 stats_dict["distance_calls"] = stats.distance_calls;
+                 stats_dict["greedy_hops"] = stats.greedy_hops;
+                 stats_dict["hops_per_layer"] = stats.hops_per_layer;
+                 stats_dict["layer_visits"] = stats.layer_visits;
+                 stats_dict["candidate_queue_stability"] = stats.candidate_queue_stability;
+                 stats_dict["result_distance_gaps"] = stats.result_distance_gaps;
+                 stats_dict["search_strategy"] = stats.search_strategy;
+                 stats_dict["filter_rejected_candidates"] = stats.filter_rejected_candidates;
+                 return py::make_tuple(out, stats_dict);
+             }, py::arg("query"), py::arg("k"), py::arg("bitmap"),
+             py::arg("strategy"), py::arg("ef") = 0, py::arg("expansion_factor") = 4)
 
         .def("search_batch", [](minivec::HNSWIndexSimple &index, py::array_t<float, py::array::c_style | py::array::forcecast> queries, int k)
              {
