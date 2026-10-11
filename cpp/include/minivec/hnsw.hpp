@@ -34,6 +34,8 @@
 #include <string>
 #include <cstdint>
 #include <atomic>
+#include <optional>
+#include <unordered_map>
 
 namespace minivec
 {
@@ -44,6 +46,13 @@ namespace minivec
     // hierarchical small-world graph.
     class HNSWIndexSimple
     {
+    public:
+        struct BitmapResult
+        {
+            std::vector<std::uint64_t> words;
+            NodeId count = 0;
+        };
+
     private:
         // Upper-layer maximum neighbors per node; layer 0 permits up to 2M.
         int M;
@@ -80,6 +89,9 @@ namespace minivec
         // same index in the VecStore.
         std::vector<std::unique_ptr<HNSWNodeSimple>> nodes;
 
+        // Columnar integer payloads aligned with node IDs. Missing values are nullopt.
+        std::unordered_map<std::string, std::vector<std::optional<std::int64_t>>> attributes;
+
         // Distance function used to compute distances between vectors.
         DistanceMetric distance_func;
 
@@ -87,7 +99,10 @@ namespace minivec
         DistanceMetric final_distance_func;
 
         // Caller must hold index_mtx exclusively.
-        NodeId add_node_unlocked(const float *vec_vals, int layer);
+        NodeId add_node_unlocked(
+            const float *vec_vals,
+            int layer,
+            const std::unordered_map<std::string, std::int64_t> &attrs = {});
         // Caller must hold mutation_mtx; graph mutation is protected by node locks.
         void prune_neighbours_unlocked(NodeId id, int layer);
         // Caller must hold index_mtx or mutation_mtx.
@@ -206,6 +221,24 @@ namespace minivec
         // Returns:
         //   64-bit ID of the inserted node.
         NodeId insert_vector(const float *vec_vals);
+
+        // Inserts a vector and its optional integer attributes atomically.
+        NodeId insert_vector(
+            const float *vec_vals,
+            const std::unordered_map<std::string, std::int64_t> &attrs);
+
+        // Sets or replaces one integer attribute for an existing vector.
+        void set_attribute(NodeId id, const std::string &name, std::int64_t value);
+
+        // Evaluates an inclusive integer predicate into a dense node-ID bitmap.
+        BitmapResult attribute_eq(const std::string &name, std::int64_t value) const;
+        BitmapResult attribute_in(
+            const std::string &name,
+            const std::vector<std::int64_t> &values) const;
+        BitmapResult attribute_range(
+            const std::string &name,
+            std::int64_t minimum,
+            std::int64_t maximum) const;
 
         // Prunes neighbors of a node at a given layer to enforce the HNSW degree constraint.
         //
