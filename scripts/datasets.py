@@ -16,6 +16,8 @@ BASE_URL = "http://ann-benchmarks.com"
 DATASETS = {
     "sift-128-euclidean": "l2",
     "glove-100-angular": "cosine",
+    "gist-960-euclidean": "l2",
+    "deep-image-96-angular": "cosine",
 }
 
 
