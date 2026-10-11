@@ -209,9 +209,17 @@ MiniVec exposes runtime search metrics:
 struct SearchStats {
     uint64_t visited_nodes;
     uint64_t distance_calls;
-    std::unordered_map<int, uint64_t> layer_visits;
+    uint64_t greedy_hops;
+    std::map<int, uint64_t> hops_per_layer;
+    std::map<int, uint64_t> layer_visits;
+    double candidate_queue_stability;
+    std::vector<float> result_distance_gaps;
 };
 ```
+
+`candidate_queue_stability` is the fraction of discovered ef-search nodes that
+did not change the retained best set (from 0 to 1). `result_distance_gaps`
+contains adjacent distance differences in the final sorted results.
 
 These statistics enable:
 
@@ -283,7 +291,7 @@ batch_results = index.search_many(queries, k=10)
 results, stats = index.search_with_stats(query, k=10)
 ```
 
-`MiniVecIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. Set `deterministic=True` and a fixed `seed` to make serial graph builds repeatable for the same insertion order. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, distance calls, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
+`MiniVecIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. Set `deterministic=True` and a fixed `seed` to make serial graph builds repeatable for the same insertion order. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, total distance calls (greedy descent, ef-search, and final scoring), greedy hops by layer, candidate-queue stability, adjacent result-distance gaps, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
 
 Use `index.set_ef_search(value)` to tune the default query breadth after building the graph. It affects subsequent scalar and batch searches and can be adjusted while other threads are querying; larger values generally trade latency for recall.
 

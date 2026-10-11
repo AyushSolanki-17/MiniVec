@@ -39,6 +39,10 @@ PYBIND11_MODULE(minivec_cpp, m)
         .def(py::init<>())
         .def_readwrite("visited_nodes", &minivec::SearchStats::visited_nodes)
         .def_readwrite("distance_calls", &minivec::SearchStats::distance_calls)
+        .def_readwrite("greedy_hops", &minivec::SearchStats::greedy_hops)
+        .def_readwrite("hops_per_layer", &minivec::SearchStats::hops_per_layer)
+        .def_readwrite("candidate_queue_stability", &minivec::SearchStats::candidate_queue_stability)
+        .def_readwrite("result_distance_gaps", &minivec::SearchStats::result_distance_gaps)
         .def_readwrite("layer_visits", &minivec::SearchStats::layer_visits);
 
     // ---------------- HNSWIndexSimple binding ----------------
@@ -120,6 +124,10 @@ PYBIND11_MODULE(minivec_cpp, m)
          py::dict stats_dict;
          stats_dict["visited_nodes"] = stats.visited_nodes;
          stats_dict["distance_calls"] = stats.distance_calls;
+         stats_dict["greedy_hops"] = stats.greedy_hops;
+         stats_dict["hops_per_layer"] = stats.hops_per_layer;
+         stats_dict["candidate_queue_stability"] = stats.candidate_queue_stability;
+         stats_dict["result_distance_gaps"] = stats.result_distance_gaps;
          stats_dict["layer_visits"] = stats.layer_visits;
 
          return py::make_tuple(out, stats_dict); }, py::arg("query"), py::arg("k"))

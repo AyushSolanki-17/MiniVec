@@ -176,7 +176,7 @@ class MiniVecIndex:
 
     def search_with_stats(
         self, query: np.ndarray, k: int
-    ) -> Tuple[List[Tuple[int, float]], Dict[str, int]]:
+    ) -> Tuple[List[Tuple[int, float]], Dict[str, object]]:
         """
         Search with instrumentation enabled.
 
@@ -186,6 +186,9 @@ class MiniVecIndex:
         - benchmarking
         - research experiments
         - debugging traversal behavior
+
+        Stats include distance calls, greedy hops by layer, candidate-queue
+        stability, and adjacent gaps between sorted result distances.
         """
         q = np.asarray(query, dtype=np.float32)
 

@@ -73,3 +73,27 @@ TEST(HNSWSearchStats, DeterministicStatsMatch) {
     EXPECT_EQ(s1.distance_calls, s2.distance_calls);
     EXPECT_EQ(s1.layer_visits, s2.layer_visits);
 }
+
+TEST(HNSWSearchStats, ExposesEstimatorSignals) {
+    minivec::HNSWIndexSimple index(8, 8, 50, 30, true, 42);
+    for (int i = 0; i < 80; ++i) {
+        std::vector<float> v(8, float(i));
+        index.insert_vector(v.data());
+    }
+    std::vector<float> query(8, 12.5f);
+    minivec::SearchStats stats;
+    const auto results = index.search_top_k(query.data(), 30, 6, &stats);
+
+    EXPECT_GE(stats.distance_calls, stats.visited_nodes);
+    uint64_t total_hops = 0;
+    for (const auto &[layer, hops] : stats.hops_per_layer) {
+        EXPECT_GT(layer, 0);
+        total_hops += hops;
+    }
+    EXPECT_EQ(stats.greedy_hops, total_hops);
+    EXPECT_GE(stats.candidate_queue_stability, 0.0);
+    EXPECT_LE(stats.candidate_queue_stability, 1.0);
+    EXPECT_EQ(stats.result_distance_gaps.size(), results.size() > 0 ? results.size() - 1 : 0);
+    for (size_t i = 1; i < results.size(); ++i)
+        EXPECT_FLOAT_EQ(stats.result_distance_gaps[i - 1], results[i].distance - results[i - 1].distance);
+}
