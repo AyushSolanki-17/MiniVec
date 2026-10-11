@@ -4,12 +4,12 @@
  * @details
  * This file implements the HNSWNodeSimple class, which represents a node in the HNSW graph.
  */
-#include "minivec/hnsw_node.hpp"
+#include "binturong/hnsw_node.hpp"
 #include <algorithm>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
-namespace minivec
+namespace binturong
 {
 // Initializes a node with the given id, number of layers, and neighbor capacity.
 //

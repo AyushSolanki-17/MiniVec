@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "minivec/hnsw.hpp"
-#include "minivec/dist.hpp"
+#include "binturong/hnsw.hpp"
+#include "binturong/dist.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -13,10 +13,10 @@
 
 namespace
 {
-    using minivec::Candidate;
-    using minivec::HNSWIndexSimple;
+    using binturong::Candidate;
+    using binturong::HNSWIndexSimple;
 
-    bool bitmap_has(const std::vector<std::uint64_t> &bitmap, minivec::NodeId id)
+    bool bitmap_has(const std::vector<std::uint64_t> &bitmap, binturong::NodeId id)
     {
         const auto node_id = static_cast<std::size_t>(id);
         return node_id / 64 < bitmap.size() &&
@@ -55,12 +55,12 @@ namespace
             std::vector<Candidate> exact;
             for (int id = 0; id < count; ++id)
                 if (bitmap_has(filter.words, id))
-                    exact.emplace_back(id, minivec::compute_distance(
-                        minivec::get_distance_metric("l2"), query.data(), vectors[id].data(), dimension));
-            std::sort(exact.begin(), exact.end(), minivec::candidate_distance_less);
+                    exact.emplace_back(id, binturong::compute_distance(
+                        binturong::get_distance_metric("l2"), query.data(), vectors[id].data(), dimension));
+            std::sort(exact.begin(), exact.end(), binturong::candidate_distance_less);
             exact.erase(exact.begin() + k, exact.end());
 
-            minivec::SearchStats brute_stats;
+            binturong::SearchStats brute_stats;
             const auto brute = index.search_filtered_top_k(
                 query.data(), 40, k, filter.words, "brute_force", 4, &brute_stats);
             ASSERT_EQ(brute.size(), exact.size());
@@ -71,7 +71,7 @@ namespace
 
             for (const auto &strategy : std::vector<std::string>{"filtered_traversal", "post_filter"})
             {
-                minivec::SearchStats stats;
+                binturong::SearchStats stats;
                 const auto found = index.search_filtered_top_k(
                     query.data(), 40, k, filter.words, strategy, 8, &stats);
                 size_t hits = 0;

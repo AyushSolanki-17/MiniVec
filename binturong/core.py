@@ -1,6 +1,6 @@
-# minivec/core.py
+# binturong/core.py
 """
-Python-facing wrapper for the MiniVec HNSW index.
+Python-facing wrapper for the Binturong HNSW index.
 
 This module provides a thin, explicit wrapper over the C++ implementation
 exposed via pybind11. The goal is:
@@ -15,7 +15,7 @@ from typing import List, Tuple, Dict
 from collections.abc import Mapping, Sequence
 from operator import index as integer_index
 import numpy as np
-import minivec_cpp
+import binturong_cpp
 
 _C_INT_MAX = 2**31 - 1
 _I64_MIN = -(2**63)
@@ -64,9 +64,9 @@ def _attributes(attrs: Mapping[str, int] | None) -> Dict[str, int]:
     return normalized
 
 
-class MiniVecIndex:
+class BinturongIndex:
     """
-    MiniVecIndex is a lightweight Python wrapper over the C++ HNSWIndexSimple.
+    BinturongIndex is a lightweight Python wrapper over the C++ HNSWIndexSimple.
 
     It owns:
     - dimensionality validation
@@ -133,7 +133,7 @@ class MiniVecIndex:
             raise ValueError(f"dim must be at most {_C_INT_MAX}")
         self.dim = int(dim)
         self.M = int(M)
-        self._index = minivec_cpp.HNSWIndexSimple(
+        self._index = binturong_cpp.HNSWIndexSimple(
             self.dim,
             self.M,
             int(ef_construction),

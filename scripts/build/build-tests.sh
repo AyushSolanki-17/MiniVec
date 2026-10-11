@@ -28,7 +28,7 @@ echo "Creating debug + sanitizer build..."
 
 rm -rf "${ROOT_DIR}/build-sanitize"
 cmake -S "${ROOT_DIR}/cpp" -B "${ROOT_DIR}/build-sanitize" -DCMAKE_BUILD_TYPE=Debug \
-  -DMINIVEC_SANITIZE=address -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+  -DBINTURONG_SANITIZE=address -DBINTURONG_BUILD_PYTHON=OFF -DBINTURONG_BUILD_BENCHMARKS=OFF
 
 cmake --build "${ROOT_DIR}/build-sanitize" -j
 

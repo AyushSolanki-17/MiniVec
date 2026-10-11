@@ -42,7 +42,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Release
-          -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+          -DBINTURONG_BUILD_PYTHON=OFF -DBINTURONG_BUILD_BENCHMARKS=OFF
 
       - name: Build
         run: cmake --build build -j 4

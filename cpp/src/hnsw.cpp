@@ -7,8 +7,8 @@
  * This implementation provides methods for inserting vectors, searching for
  * nearest neighbors, and managing the HNSW graph structure.
  */
-#include "minivec/hnsw.hpp"
-#include "minivec/dist.hpp"
+#include "binturong/hnsw.hpp"
+#include "binturong/dist.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace minivec
+namespace binturong
 {
     namespace
     {
@@ -55,7 +55,7 @@ namespace minivec
           efConstruction(efConstruction_),
           efSearch(efSearch_),
           store(dim_),
-          layer_gen(deterministic_levelgen ? minivec::HNSWLevelGenerator::from_M(M_, deterministic_levelgen, levelgen_seed) : minivec::HNSWLevelGenerator::from_M(M_)),
+          layer_gen(deterministic_levelgen ? binturong::HNSWLevelGenerator::from_M(M_, deterministic_levelgen, levelgen_seed) : binturong::HNSWLevelGenerator::from_M(M_)),
           distance_func(get_distance_metric(distance_func_name_)),
           final_distance_func(get_distance_metric(final_distance_func_name_))
     {
@@ -1187,4 +1187,4 @@ namespace minivec
             nodes[b]->remove_neighbor_nolock(a, layer);
         }
     }
-} // namespace minivec
+} // namespace binturong

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 
 
 def has_id(bitmap_words, node_id):
@@ -10,7 +10,7 @@ def has_id(bitmap_words, node_id):
 
 
 def test_attribute_predicates_and_selectivity():
-    index = MiniVecIndex(dim=2, M=4, ef_construction=20, ef_search=10, deterministic=True)
+    index = BinturongIndex(dim=2, M=4, ef_construction=20, ef_search=10, deterministic=True)
     vectors = np.asarray([[float(i), 0.0] for i in range(70)], dtype=np.float32)
     attrs = []
     for i in range(70):
@@ -42,7 +42,7 @@ def test_attribute_predicates_and_selectivity():
 
 
 def test_attributes_on_single_and_batch_insert_and_set():
-    index = MiniVecIndex(dim=2, M=4, deterministic=True)
+    index = BinturongIndex(dim=2, M=4, deterministic=True)
     first = index.add(np.asarray([0.0, 0.0], dtype=np.float32), {"tenant": -1})
     ids = index.add_many(
         np.asarray([[1.0, 1.0], [2.0, 2.0]], dtype=np.float32),
@@ -56,12 +56,12 @@ def test_attributes_on_single_and_batch_insert_and_set():
 
 @pytest.mark.parametrize("attrs", [{"": 1}, {"tenant": True}, {"tenant": 2**63}])
 def test_invalid_attributes_are_rejected(attrs):
-    index = MiniVecIndex(dim=2)
+    index = BinturongIndex(dim=2)
     with pytest.raises((TypeError, ValueError)):
         index.add(np.asarray([0.0, 0.0], dtype=np.float32), attrs)
 
 
 def test_attribute_range_requires_ordered_bounds():
-    index = MiniVecIndex(dim=2)
+    index = BinturongIndex(dim=2)
     with pytest.raises(ValueError):
         index.attribute_range("year", 5, 4)

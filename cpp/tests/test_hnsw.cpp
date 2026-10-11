@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"  // your HNSW class
+#include "binturong/hnsw.hpp"  // your HNSW class
 #include <vector>
 #include <iostream>
 #include <limits>
@@ -13,17 +13,17 @@
 #include <utility>
 
 static_assert(std::is_same_v<
-              decltype(std::declval<minivec::HNSWIndexSimple &>().insert_vector(nullptr)),
-              minivec::NodeId>);
+              decltype(std::declval<binturong::HNSWIndexSimple &>().insert_vector(nullptr)),
+              binturong::NodeId>);
 
 TEST(HNSWTest, RejectsInvalidConfigurationAndVectorInputsWithoutMutation) {
-    EXPECT_THROW(minivec::HNSWIndexSimple(0), std::invalid_argument);
-    EXPECT_THROW(minivec::HNSWIndexSimple(2, 0), std::invalid_argument);
-    EXPECT_THROW(minivec::HNSWIndexSimple(2, std::numeric_limits<int>::max()), std::invalid_argument);
-    EXPECT_THROW(minivec::HNSWIndexSimple(2, 2, 0), std::invalid_argument);
-    EXPECT_THROW(minivec::HNSWIndexSimple(2, 2, 10, 0), std::invalid_argument);
+    EXPECT_THROW(binturong::HNSWIndexSimple(0), std::invalid_argument);
+    EXPECT_THROW(binturong::HNSWIndexSimple(2, 0), std::invalid_argument);
+    EXPECT_THROW(binturong::HNSWIndexSimple(2, std::numeric_limits<int>::max()), std::invalid_argument);
+    EXPECT_THROW(binturong::HNSWIndexSimple(2, 2, 0), std::invalid_argument);
+    EXPECT_THROW(binturong::HNSWIndexSimple(2, 2, 10, 0), std::invalid_argument);
 
-    minivec::HNSWIndexSimple index(2);
+    binturong::HNSWIndexSimple index(2);
     EXPECT_THROW(index.insert_vector(nullptr), std::invalid_argument);
     EXPECT_EQ(index.get_node_count(), 0);
     const float valid[] = {1.0f, 2.0f};
@@ -35,7 +35,7 @@ TEST(HNSWTest, RejectsInvalidConfigurationAndVectorInputsWithoutMutation) {
 }
 
 TEST(HNSWTest, ExplicitNodeInsertionUpdatesEntryPointAndSymmetricLinksValidateBothLayers) {
-    minivec::HNSWIndexSimple index(1, 2);
+    binturong::HNSWIndexSimple index(1, 2);
     const float a[] = {1.0f};
     const float b[] = {2.0f};
     const auto low_id = index.add_node(a, 0);
@@ -49,30 +49,30 @@ TEST(HNSWTest, ExplicitNodeInsertionUpdatesEntryPointAndSymmetricLinksValidateBo
 }
 
 TEST(HNSWTest, NeighborRemovalHonorsPreserveOrder) {
-    minivec::HNSWNodeSimple swapped(0, 1, 4);
-    minivec::HNSWNodeSimple ordered(1, 1, 4);
-    for (minivec::NodeId id : {10, 20, 30}) {
+    binturong::HNSWNodeSimple swapped(0, 1, 4);
+    binturong::HNSWNodeSimple ordered(1, 1, 4);
+    for (binturong::NodeId id : {10, 20, 30}) {
         swapped.add_neighbor(id, 0);
         ordered.add_neighbor(id, 0);
     }
 
     EXPECT_TRUE(swapped.remove_neighbor(20, 0));
     EXPECT_TRUE(ordered.remove_neighbor(20, 0, true));
-    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<minivec::NodeId>{10, 30}));
-    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<minivec::NodeId>{10, 30}));
+    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<binturong::NodeId>{10, 30}));
+    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<binturong::NodeId>{10, 30}));
 
     swapped.add_neighbor(40, 0);
     ordered.add_neighbor(40, 0);
     EXPECT_TRUE(swapped.remove_neighbor(10, 0));
     EXPECT_TRUE(ordered.remove_neighbor(10, 0, true));
-    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<minivec::NodeId>{40, 30}));
-    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<minivec::NodeId>{30, 40}));
+    EXPECT_EQ(swapped.get_neighbors(0), (std::vector<binturong::NodeId>{40, 30}));
+    EXPECT_EQ(ordered.get_neighbors(0), (std::vector<binturong::NodeId>{30, 40}));
 }
 
 TEST(HNSWTest, TopKHandlesSmallEfZeroKAndLargeK) {
-    minivec::HNSWIndexSimple index(1, 2);
+    binturong::HNSWIndexSimple index(1, 2);
     const float values[] = {0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<minivec::NodeId> ids;
+    std::vector<binturong::NodeId> ids;
     for (float value : values)
         ids.push_back(index.add_node(&value, 0));
     for (size_t i = 0; i < ids.size(); ++i)
@@ -88,18 +88,18 @@ TEST(HNSWTest, TopKHandlesSmallEfZeroKAndLargeK) {
 
 TEST(HNSWTest, LayerGeneratorCapsExtremeParametersBeforeIntegerConversion) {
     const double p = std::nextafter(1.0, 0.0);
-    minivec::HNSWLevelGenerator generator(p, std::numeric_limits<double>::min(), 7);
+    binturong::HNSWLevelGenerator generator(p, std::numeric_limits<double>::min(), 7);
     EXPECT_EQ(generator.max_level(), 64);
     EXPECT_GE(generator.getRandomLayer(), 0);
     EXPECT_LE(generator.getRandomLayer(), 64);
 
-    minivec::HNSWLevelGenerator always_rises(1.0, 1e-6, 7);
+    binturong::HNSWLevelGenerator always_rises(1.0, 1e-6, 7);
     EXPECT_EQ(always_rises.max_level(), 64);
     EXPECT_EQ(always_rises.getRandomLayer(), 64);
 }
 
 TEST(HNSWTest, ClearRestartsDeterministicLayerSequence) {
-    minivec::HNSWIndexSimple index(2, 4, 20, 20, true, 99);
+    binturong::HNSWIndexSimple index(2, 4, 20, 20, true, 99);
     const float vector[] = {0.5f, 1.0f};
     std::vector<int> first_build;
     for (int i = 0; i < 30; ++i) {
@@ -115,8 +115,8 @@ TEST(HNSWTest, ClearRestartsDeterministicLayerSequence) {
 }
 
 TEST(HNSWTest, VisitWorkspaceCanBeReusedAcrossIndexes) {
-    minivec::HNSWIndexSimple first(1, 2, 10, 10, true, 11);
-    minivec::HNSWIndexSimple second(1, 2, 10, 10, true, 12);
+    binturong::HNSWIndexSimple first(1, 2, 10, 10, true, 11);
+    binturong::HNSWIndexSimple second(1, 2, 10, 10, true, 12);
     const float values[] = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
     for (float value : values) {
         first.insert_vector(&value);
@@ -141,57 +141,57 @@ TEST(HNSWTest, CosineAndInnerProductRemainFiniteForLargeFiniteInputs) {
     const float orthogonal[] = {1.0e20f, -1.0e20f};
     const float opposite[] = {-1.0e20f, -1.0e20f};
     const float cancelling[] = {1.0e20f, -1.0e20f};
-    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, same, 2), 0.0f);
-    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, orthogonal, 2), 1.0f);
-    EXPECT_FLOAT_EQ(minivec::cosine_distance(a, opposite, 2), 2.0f);
-    EXPECT_FLOAT_EQ(minivec::inner_product_distance(a, cancelling, 2), 0.0f);
+    EXPECT_FLOAT_EQ(binturong::cosine_distance(a, same, 2), 0.0f);
+    EXPECT_FLOAT_EQ(binturong::cosine_distance(a, orthogonal, 2), 1.0f);
+    EXPECT_FLOAT_EQ(binturong::cosine_distance(a, opposite, 2), 2.0f);
+    EXPECT_FLOAT_EQ(binturong::inner_product_distance(a, cancelling, 2), 0.0f);
 }
 
 TEST(HNSWTest, DistanceHelpersRejectNegativeDimensions) {
     const float value[] = {1.0f};
-    EXPECT_THROW(minivec::l2_squared_scalar(value, value, -1), std::invalid_argument);
-    EXPECT_THROW(minivec::l2_squared_distance(value, value, -1), std::invalid_argument);
-    EXPECT_THROW(minivec::inner_product_distance(value, value, -1), std::invalid_argument);
-    EXPECT_THROW(minivec::cosine_distance(value, value, -1), std::invalid_argument);
-    EXPECT_THROW(minivec::l2_squared_distance(nullptr, value, 1), std::invalid_argument);
+    EXPECT_THROW(binturong::l2_squared_scalar(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(binturong::l2_squared_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(binturong::inner_product_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(binturong::cosine_distance(value, value, -1), std::invalid_argument);
+    EXPECT_THROW(binturong::l2_squared_distance(nullptr, value, 1), std::invalid_argument);
 }
 
 TEST(HNSWTest, NeighborVisitorMatchesSnapshot) {
-    minivec::HNSWNodeSimple node(7, 1, 4);
+    binturong::HNSWNodeSimple node(7, 1, 4);
     node.add_neighbor(2, 0);
     node.add_neighbor(5, 0);
-    std::vector<minivec::NodeId> visited;
-    node.for_each_neighbor(0, [&](minivec::NodeId neighbor) { visited.push_back(neighbor); });
+    std::vector<binturong::NodeId> visited;
+    node.for_each_neighbor(0, [&](binturong::NodeId neighbor) { visited.push_back(neighbor); });
     EXPECT_EQ(visited, node.get_neighbors(0));
 }
 
 TEST(HNSWTest, PackedNeighborLayersStayCorrectAcrossMutation) {
-    minivec::HNSWNodeSimple node(7, 3, 4);
+    binturong::HNSWNodeSimple node(7, 3, 4);
     node.add_neighbor(10, 0);
     node.add_neighbor(11, 0);
     node.add_neighbor(20, 1);
     node.add_neighbor(30, 2);
-    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{10, 11}));
-    EXPECT_EQ(node.get_neighbors(1), (std::vector<minivec::NodeId>{20}));
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<binturong::NodeId>{10, 11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<binturong::NodeId>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<binturong::NodeId>{30}));
 
     EXPECT_TRUE(node.remove_neighbor(10, 0));
-    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{11}));
-    EXPECT_EQ(node.get_neighbors(1), (std::vector<minivec::NodeId>{20}));
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<binturong::NodeId>{11}));
+    EXPECT_EQ(node.get_neighbors(1), (std::vector<binturong::NodeId>{20}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<binturong::NodeId>{30}));
     node.clear_layer(1);
     EXPECT_TRUE(node.get_neighbors(1).empty());
-    EXPECT_EQ(node.get_neighbors(2), (std::vector<minivec::NodeId>{30}));
+    EXPECT_EQ(node.get_neighbors(2), (std::vector<binturong::NodeId>{30}));
 }
 
 TEST(HNSWTest, NodeAndNeighborIdsPreserveValuesBeyondIntRange) {
-    const minivec::NodeId high_id = static_cast<minivec::NodeId>(std::numeric_limits<int>::max()) + 123;
-    minivec::HNSWNodeSimple node(high_id, 1, 4);
+    const binturong::NodeId high_id = static_cast<binturong::NodeId>(std::numeric_limits<int>::max()) + 123;
+    binturong::HNSWNodeSimple node(high_id, 1, 4);
     node.add_neighbor(high_id + 1, 0);
-    const minivec::Candidate candidate(high_id + 2, 0.5f);
+    const binturong::Candidate candidate(high_id + 2, 0.5f);
     EXPECT_EQ(node.get_id(), high_id);
     EXPECT_EQ(candidate.id, high_id + 2);
-    EXPECT_EQ(node.get_neighbors(0), (std::vector<minivec::NodeId>{high_id + 1}));
+    EXPECT_EQ(node.get_neighbors(0), (std::vector<binturong::NodeId>{high_id + 1}));
 }
 
 TEST(HNSWTest, DistanceMetricsHaveExpectedOrderingAndZeroVectorBehavior) {
@@ -199,13 +199,13 @@ TEST(HNSWTest, DistanceMetricsHaveExpectedOrderingAndZeroVectorBehavior) {
     const float orthogonal[] = {0.0f, 1.0f};
     const float opposite[] = {-1.0f, 0.0f};
     const float zero[] = {0.0f, 0.0f};
-    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::L2Squared, x, orthogonal, 2), 2.0f);
-    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, orthogonal, 2), 1.0f);
-    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, opposite, 2), 2.0f);
-    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::Cosine, x, zero, 2), 1.0f);
-    EXPECT_FLOAT_EQ(minivec::compute_distance(minivec::DistanceMetric::InnerProduct, x, opposite, 2), 1.0f);
+    EXPECT_FLOAT_EQ(binturong::compute_distance(binturong::DistanceMetric::L2Squared, x, orthogonal, 2), 2.0f);
+    EXPECT_FLOAT_EQ(binturong::compute_distance(binturong::DistanceMetric::Cosine, x, orthogonal, 2), 1.0f);
+    EXPECT_FLOAT_EQ(binturong::compute_distance(binturong::DistanceMetric::Cosine, x, opposite, 2), 2.0f);
+    EXPECT_FLOAT_EQ(binturong::compute_distance(binturong::DistanceMetric::Cosine, x, zero, 2), 1.0f);
+    EXPECT_FLOAT_EQ(binturong::compute_distance(binturong::DistanceMetric::InnerProduct, x, opposite, 2), 1.0f);
 
-    minivec::HNSWIndexSimple index(2, 2, 10, 10, true, 9, "cosine", "cosine");
+    binturong::HNSWIndexSimple index(2, 2, 10, 10, true, 9, "cosine", "cosine");
     index.insert_vector(x);
     index.insert_vector(orthogonal);
     const auto result = index.search_top_k(x, 10, 2);
@@ -222,8 +222,8 @@ TEST(HNSWTest, DispatchedSquaredL2MatchesScalarAcrossRemainders) {
             a[i] = distribution(rng);
             b[i] = distribution(rng);
         }
-        EXPECT_NEAR(minivec::l2_squared_distance(a.data(), b.data(), static_cast<int>(dim)),
-                    minivec::l2_squared_scalar(a.data(), b.data(), static_cast<int>(dim)),
+        EXPECT_NEAR(binturong::l2_squared_distance(a.data(), b.data(), static_cast<int>(dim)),
+                    binturong::l2_squared_scalar(a.data(), b.data(), static_cast<int>(dim)),
                     1e-4f * static_cast<float>(dim));
     }
 }
@@ -233,24 +233,24 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     constexpr int dim = 32;
     constexpr uint32_t seed = 123;
 
-    auto build = [&](minivec::HNSWIndexSimple& index) {
+    auto build = [&](binturong::HNSWIndexSimple& index) {
         for (int i = 0; i < 100; ++i) {
             std::vector<float> v(dim, float(i));
             index.insert_vector(v.data());
         }
         auto r = index.search_top_k(index.get_vector_ptr(10), 50, 5);
-        std::vector<minivec::NodeId> ids;
+        std::vector<binturong::NodeId> ids;
         for (auto& c : r) ids.push_back(c.id);
         return ids;
     };
 
-    minivec::HNSWIndexSimple a(dim, 16, 100, 50, true, seed);
-    minivec::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
+    binturong::HNSWIndexSimple a(dim, 16, 100, 50, true, seed);
+    binturong::HNSWIndexSimple b(dim, 16, 100, 50, true, seed);
 
     std::cout<<"Building index A..."<<std::endl;
-    std::vector<minivec::NodeId> a1 = build(a);
+    std::vector<binturong::NodeId> a1 = build(a);
     std::cout<<"Building index B..."<<std::endl;
-    std::vector<minivec::NodeId> b1 = build(b);
+    std::vector<binturong::NodeId> b1 = build(b);
 
     std::cout<<"Comparing results..."<<std::endl;
     std::cout<<"Index A results: ";
@@ -260,7 +260,7 @@ TEST(HNSWTest, DeterministicBuildProducesIdenticalResults) {
     for (auto id : b1) std::cout<<id<<" ";
     std::cout<<std::endl;
 
-    ASSERT_EQ(std::unordered_set<minivec::NodeId>(a1.begin(), a1.end()),std::unordered_set<minivec::NodeId>(b1.begin(), b1.end()));
+    ASSERT_EQ(std::unordered_set<binturong::NodeId>(a1.begin(), a1.end()),std::unordered_set<binturong::NodeId>(b1.begin(), b1.end()));
     for (int id = 0; id < a.get_node_count(); ++id) {
         EXPECT_EQ(a.get_layer(id), b.get_layer(id));
         EXPECT_EQ(a.get_neighbors_copy(id, 0), b.get_neighbors_copy(id, 0));
@@ -275,7 +275,7 @@ TEST(HNSWTest, LayerZeroKeepsTwoMNeighborsAndPruningDoesNotIsolateNodes) {
     constexpr int dim = 4;
     constexpr int M = 4;
     constexpr int count = 1000;
-    minivec::HNSWIndexSimple index(dim, M, 50, 30, true, 17);
+    binturong::HNSWIndexSimple index(dim, M, 50, 30, true, 17);
     std::mt19937 rng(1234);
     std::normal_distribution<float> distribution(0.0f, 1.0f);
 
@@ -298,12 +298,12 @@ TEST(HNSWTest, LayerZeroKeepsTwoMNeighborsAndPruningDoesNotIsolateNodes) {
     EXPECT_TRUE(observed_more_than_M);
 
     std::vector<bool> reachable(count, false);
-    std::vector<minivec::NodeId> pending{index.get_entry_point()};
+    std::vector<binturong::NodeId> pending{index.get_entry_point()};
     reachable[pending.front()] = true;
     while (!pending.empty()) {
         const int current = pending.back();
         pending.pop_back();
-        for (minivec::NodeId neighbor : index.get_neighbors_copy(current, 0)) {
+        for (binturong::NodeId neighbor : index.get_neighbors_copy(current, 0)) {
             if (!reachable[neighbor]) {
                 reachable[neighbor] = true;
                 pending.push_back(neighbor);
@@ -316,26 +316,26 @@ TEST(HNSWTest, LayerZeroKeepsTwoMNeighborsAndPruningDoesNotIsolateNodes) {
 }
 
 TEST(HNSWTest, InsertNeighborSelectionRejectsRedundantCandidates) {
-    minivec::HNSWIndexSimple index(2, 2, 10, 10, true, 17);
+    binturong::HNSWIndexSimple index(2, 2, 10, 10, true, 17);
     const float nearest[] = {-1.0f, 0.0f};
     const float redundant[] = {-1.1f, -0.1f};
     const float opposite[] = {1.2f, 0.0f};
     const float upper[] = {0.0f, 1.3f};
     const float lower[] = {0.0f, -1.4f};
     const float query[] = {0.0f, 0.0f};
-    const minivec::NodeId nearest_id = index.add_node(nearest, 0);
-    const minivec::NodeId redundant_id = index.add_node(redundant, 0);
-    const minivec::NodeId opposite_id = index.add_node(opposite, 0);
-    const minivec::NodeId upper_id = index.add_node(upper, 0);
-    const minivec::NodeId lower_id = index.add_node(lower, 0);
+    const binturong::NodeId nearest_id = index.add_node(nearest, 0);
+    const binturong::NodeId redundant_id = index.add_node(redundant, 0);
+    const binturong::NodeId opposite_id = index.add_node(opposite, 0);
+    const binturong::NodeId upper_id = index.add_node(upper, 0);
+    const binturong::NodeId lower_id = index.add_node(lower, 0);
     index.link_nodes_symmetrically(nearest_id, redundant_id, 0);
     index.link_nodes_symmetrically(nearest_id, opposite_id, 0);
     index.link_nodes_symmetrically(nearest_id, upper_id, 0);
     index.link_nodes_symmetrically(nearest_id, lower_id, 0);
 
-    const minivec::NodeId inserted_id = index.insert_vector(query);
+    const binturong::NodeId inserted_id = index.insert_vector(query);
     const auto selected = index.get_neighbors_copy(inserted_id, 0);
-    const std::unordered_set<minivec::NodeId> selected_ids(selected.begin(), selected.end());
+    const std::unordered_set<binturong::NodeId> selected_ids(selected.begin(), selected.end());
 
     // A new node links to at most M neighbors chosen by the diversity
     // heuristic: the nearest, then the closest candidate not dominated by it.
@@ -346,16 +346,16 @@ TEST(HNSWTest, InsertNeighborSelectionRejectsRedundantCandidates) {
 }
 
 TEST(HNSWTest, EfSearchRefreshesWorstDistanceForEachNeighbor) {
-    minivec::HNSWIndexSimple index(1, 2, 10, 10);
+    binturong::HNSWIndexSimple index(1, 2, 10, 10);
     const float query[] = {0.0f};
     const float entry[] = {0.0f};
     const float first[] = {10.0f};
     const float second[] = {9.0f};
     const float third[] = {9.5f};
-    const minivec::NodeId entry_id = index.add_node(entry, 0);
-    const minivec::NodeId first_id = index.add_node(first, 0);
-    const minivec::NodeId second_id = index.add_node(second, 0);
-    const minivec::NodeId third_id = index.add_node(third, 0);
+    const binturong::NodeId entry_id = index.add_node(entry, 0);
+    const binturong::NodeId first_id = index.add_node(first, 0);
+    const binturong::NodeId second_id = index.add_node(second, 0);
+    const binturong::NodeId third_id = index.add_node(third, 0);
     index.link_nodes_symmetrically(entry_id, first_id, 0);
     index.link_nodes_symmetrically(entry_id, second_id, 0);
     index.link_nodes_symmetrically(entry_id, third_id, 0);
@@ -369,16 +369,16 @@ TEST(HNSWTest, EfSearchRefreshesWorstDistanceForEachNeighbor) {
 }
 
 TEST(HNSWTest, SearchCountsUpperLayerGreedyHopsAndReusesVisitsSafely) {
-    minivec::HNSWIndexSimple index(1, 2, 10, 10);
+    binturong::HNSWIndexSimple index(1, 2, 10, 10);
     const float far[] = {5.0f};
     const float near[] = {1.0f};
     const float query[] = {0.0f};
-    const minivec::NodeId far_id = index.add_node(far, 1);
-    const minivec::NodeId near_id = index.add_node(near, 1);
+    const binturong::NodeId far_id = index.add_node(far, 1);
+    const binturong::NodeId near_id = index.add_node(near, 1);
     index.link_nodes_symmetrically(far_id, near_id, 1);
     index.link_nodes_symmetrically(far_id, near_id, 0);
 
-    minivec::SearchStats stats;
+    binturong::SearchStats stats;
     const auto first = index.search_top_k(query, 10, 2, &stats);
     ASSERT_EQ(first.size(), 2u);
     EXPECT_EQ(first.front().id, near_id);
@@ -396,7 +396,7 @@ TEST(HNSWTest, ConcurrentInsertSearchAndClearAreSynchronized) {
     constexpr int writers = 4;
     constexpr int inserts_per_writer = 50;
     constexpr int dim = 8;
-    minivec::HNSWIndexSimple index(dim, 4, 20, 20, true, 123);
+    binturong::HNSWIndexSimple index(dim, 4, 20, 20, true, 123);
     std::atomic<bool> inserting{true};
     std::atomic<int> failures{0};
     const std::vector<float> query(dim, 0.25f);
@@ -476,7 +476,7 @@ TEST(HNSWTest, ConcurrentInsertSearchAndClearAreSynchronized) {
 
 // Probabilistic test: allow normal HNSW level generation
 TEST(HNSWTest, InsertAndSearchProbabilistic) {
-    minivec::HNSWIndexSimple index(32);
+    binturong::HNSWIndexSimple index(32);
 
     std::vector<float> vec1(32, 0.5f);
     std::vector<float> vec2(32, 0.8f);
@@ -494,7 +494,7 @@ TEST(HNSWTest, InsertAndSearchProbabilistic) {
 
 // Memory test: insert many vectors until allocation fails
 TEST(HNSWTest, MemoryLimitsLow) {
-    minivec::HNSWIndexSimple index(1028);  // 1028-dim vectors
+    binturong::HNSWIndexSimple index(1028);  // 1028-dim vectors
 
     const int max_vectors = 25; // fits in ~10 MB
     bool allocation_failed = false;

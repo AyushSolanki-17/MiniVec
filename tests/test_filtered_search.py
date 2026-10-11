@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 
 
 def test_filtered_search_strategies_return_only_allowed_ids():
     rng = np.random.default_rng(31)
     vectors = rng.normal(size=(256, 12)).astype(np.float32)
     query = rng.normal(size=12).astype(np.float32)
-    index = MiniVecIndex(dim=12, M=8, ef_construction=40, ef_search=20, deterministic=True)
+    index = BinturongIndex(dim=12, M=8, ef_construction=40, ef_search=20, deterministic=True)
     index.add_many(vectors, [{"bucket": i % 4} for i in range(len(vectors))])
     bitmap = index.attribute_eq("bucket", 1)
     allowed = {i for i in range(len(vectors)) if i % 4 == 1}
@@ -30,7 +30,7 @@ def test_filtered_search_strategies_return_only_allowed_ids():
 
 
 def test_filtered_search_validates_strategy_and_factor():
-    index = MiniVecIndex(dim=2)
+    index = BinturongIndex(dim=2)
     index.add(np.asarray([0.0, 0.0], dtype=np.float32), {"tenant": 1})
     bitmap = index.attribute_eq("tenant", 1)
     query = np.asarray([0.0, 0.0], dtype=np.float32)

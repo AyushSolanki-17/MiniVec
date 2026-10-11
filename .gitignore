@@ -81,7 +81,7 @@ ehthumbs.db
 *.code-workspace
 
 # -----------------------------
-# Minivec-specific data outputs
+# Binturong-specific data outputs
 # -----------------------------
 # Persisted graph data
 *.npy

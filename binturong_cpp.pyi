@@ -1,4 +1,4 @@
-# stubs/minivec_cpp.pyi
+# stubs/binturong_cpp.pyi
 from typing import Dict, List, Tuple
 import numpy as np
 
@@ -38,7 +38,7 @@ class HNSWIndexSimple:
     Low-level C++ HNSW index exposed via pybind11.
 
     This class mirrors the C++ API closely and is not intended
-    to be user-facing directly. Use MiniVecIndex instead.
+    to be user-facing directly. Use BinturongIndex instead.
     """
 
     # -------- constructor --------

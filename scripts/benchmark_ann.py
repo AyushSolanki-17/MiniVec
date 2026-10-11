@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure recall and query latency for a deterministic MiniVec index.
+"""Measure recall and query latency for a deterministic Binturong index.
 
 Uses seeded Gaussian vectors by default, or an ann-benchmarks dataset with
 ``--dataset`` (see scripts/datasets.py).
@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 import numpy as np
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import datasets  # noqa: E402
@@ -67,9 +67,9 @@ def exact_neighbors(vectors, queries, k, batch=256):
     return out
 
 
-class MiniVecEngine:
+class BinturongEngine:
     def __init__(self, dim, args):
-        self.index = MiniVecIndex(
+        self.index = BinturongIndex(
             dim=dim,
             M=args.M,
             ef_construction=args.ef_construction,
@@ -113,7 +113,7 @@ class HnswlibEngine:
         return set(labels[0].tolist())
 
 
-ENGINES = {"minivec": MiniVecEngine, "hnswlib": HnswlibEngine}
+ENGINES = {"binturong": BinturongEngine, "hnswlib": HnswlibEngine}
 
 
 def run_engine(engine, vectors, queries, exact_ids, args):
@@ -193,8 +193,8 @@ def main():
         help="use an ann-benchmarks dataset instead of synthetic vectors",
     )
     parser.add_argument(
-        "--engines", type=lambda v: v.split(","), default=["minivec"],
-        help="comma-separated engines to run on identical data: minivec, hnswlib",
+        "--engines", type=lambda v: v.split(","), default=["binturong"],
+        help="comma-separated engines to run on identical data: binturong, hnswlib",
     )
     parser.add_argument("--cache-dir", default="data/ann", help="dataset download directory")
     parser.add_argument("--limit-queries", type=int, help="use only the first N dataset queries")

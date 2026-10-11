@@ -1,7 +1,7 @@
 // tests/test_hnsw_latency.cpp
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"
-#include "minivec/dist.hpp"
+#include "binturong/hnsw.hpp"
+#include "binturong/dist.hpp"
 #include <chrono>
 #include <random>
 #include <iostream>
@@ -20,7 +20,7 @@ TEST(HNSWLatency, QueryLatency) {
     std::vector<std::vector<float>> db(N, std::vector<float>(dim));
     for (int i=0;i<N;++i) for (int j=0;j<dim;++j) db[i][j]=d(rng);
 
-    minivec::HNSWIndexSimple index(dim);
+    binturong::HNSWIndexSimple index(dim);
     for (int i=0;i<N;++i) index.insert_vector(db[i].data());
 
     std::vector<std::vector<float>> queries(Q, std::vector<float>(dim));

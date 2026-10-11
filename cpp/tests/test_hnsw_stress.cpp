@@ -3,7 +3,7 @@
 // Concurrency stress: 8 writer threads insert while 8 reader threads search the
 // same index. Intended to run under ThreadSanitizer (ctest label "stress").
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"
+#include "binturong/hnsw.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -41,7 +41,7 @@ float squared_l2(const float *a, const float *b) {
 }  // namespace
 
 TEST(HNSWStress, EightWritersEightReaders) {
-    minivec::HNSWIndexSimple index(kDim, /*M=*/16, /*efConstruction=*/100, /*efSearch=*/64);
+    binturong::HNSWIndexSimple index(kDim, /*M=*/16, /*efConstruction=*/100, /*efSearch=*/64);
     std::atomic<int> writers_done{0};
     std::atomic<int> failures{0};
     std::atomic<long> searches{0};
@@ -88,13 +88,13 @@ TEST(HNSWStress, EightWritersEightReaders) {
     double total = 0.0;
     for (int q = 0; q < kRecallQueries; ++q) {
         const auto query = random_vector(rng);
-        std::vector<std::pair<float, minivec::NodeId>> exact;
+        std::vector<std::pair<float, binturong::NodeId>> exact;
         exact.reserve(kTotal);
-        for (minivec::NodeId id = 0; id < kTotal; ++id) {
+        for (binturong::NodeId id = 0; id < kTotal; ++id) {
             exact.emplace_back(squared_l2(query.data(), index.get_vector_ptr(id)), id);
         }
         std::partial_sort(exact.begin(), exact.begin() + kK, exact.end());
-        std::vector<minivec::NodeId> truth;
+        std::vector<binturong::NodeId> truth;
         for (int i = 0; i < kK; ++i) truth.push_back(exact[i].second);
 
         int hits = 0;
