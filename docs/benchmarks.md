@@ -15,10 +15,12 @@ python scripts/benchmark_ann.py --dataset sift-128-euclidean \
     --output data/bench/sift1m.json --csv data/bench/sift1m.csv
 ```
 
-Supported datasets are `sift-128-euclidean` and `glove-100-angular` (vectors
-are L2-normalized so squared-L2 ranking equals cosine ranking). Files are
-downloaded once from ann-benchmarks.com into `data/ann/` (about 500 MB each)
-and recall uses the published ground truth. `--limit-queries N` uses the first
+Supported datasets are `sift-128-euclidean`, `glove-100-angular`,
+`gist-960-euclidean`, and `deep-image-96-angular` (angular vectors are
+L2-normalized so squared-L2 ranking equals cosine ranking). Files are
+downloaded once from ann-benchmarks.com into `data/ann/`; SIFT and GloVe files
+are about 500 MB each, while GIST and DEEP files are about 3.85 GB each. Recall
+uses the published ground truth. `--limit-queries N` uses the first
 N queries; `--limit-train N` indexes the first N vectors and recomputes exact
 ground truth for that subset.
 
