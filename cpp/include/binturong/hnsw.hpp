@@ -6,7 +6,7 @@
  * This file defines the HNSWIndexSimple class, which represents a
  * HNSW (Hierarchical Navigable Small World) index for float vectors.
  * This header defines a minimal, in-memory HNSW (Hierarchical Navigable Small
- * World) index implementation used by the minivec project. The index stores
+ * World) index implementation used by the binturong project. The index stores
  * vectors in a VecStore and maintains a graph of HNSWNodeSimple nodes across
  * multiple layers.
  * The primary responsibilities of HNSWIndexSimple are:
@@ -14,7 +14,7 @@
  *    - Building the HNSW graph incrementally as new vectors are inserted.
  *    - Providing approximate nearest neighbor search via ef-search and
  *      greedy search on different layers.
- *    - Part of the MiniVec project.
+ *    - Part of the Binturong project.
  */
 
 #pragma once
@@ -37,7 +37,7 @@
 #include <optional>
 #include <unordered_map>
 
-namespace minivec
+namespace binturong
 {
     // HNSWIndexSimple implements a basic HNSW index for float vectors.
     //
@@ -76,7 +76,7 @@ namespace minivec
         VecStore store;
 
         // layer generator used to assign a random layer to each new node.
-        minivec::HNSWLevelGenerator layer_gen;
+        binturong::HNSWLevelGenerator layer_gen;
 
         // Mutex for thread safety.
         mutable std::shared_mutex index_mtx;

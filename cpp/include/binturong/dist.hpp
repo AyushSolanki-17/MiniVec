@@ -4,7 +4,7 @@
  *
  * @details
  * This file defines the public distance functions to find distance between two or more vectors.
- * Part of the MiniVec project.
+ * Part of the Binturong project.
  */
 
 #pragma once
@@ -22,7 +22,7 @@
 #include <immintrin.h>
 #endif
 
-namespace minivec
+namespace binturong
 {
     inline void validate_distance_inputs(const float *a, const float *b, int dim)
     {

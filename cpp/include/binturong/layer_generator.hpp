@@ -14,7 +14,7 @@
 #include <limits>
 #include <mutex>
 
-namespace minivec
+namespace binturong
 {
 
   // HNSWLevelGenerator
@@ -135,4 +135,4 @@ namespace minivec
     }
 
   };
-} // namespace minivec
+} // namespace binturong

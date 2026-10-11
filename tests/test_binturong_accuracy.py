@@ -1,5 +1,5 @@
 import numpy as np
-from minivec.core import MiniVecIndex
+from binturong.core import BinturongIndex
 
 
 def brute_force_knn(data, query, k):
@@ -23,7 +23,7 @@ def test_recall_against_bruteforce():
     data = np.random.randn(n, dim).astype(np.float32)
     queries = data[:q]
 
-    index = MiniVecIndex(dim=dim)
+    index = BinturongIndex(dim=dim)
     for v in data:
         index.add(v)
 

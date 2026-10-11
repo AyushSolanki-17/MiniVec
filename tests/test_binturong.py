@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 
 
 def test_basic_insert_and_size():
-    index = MiniVecIndex(dim=4, M=8)
+    index = BinturongIndex(dim=4, M=8)
 
     v1 = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
     v2 = np.array([0.0, 1.0, 0.0, 0.0], dtype=np.float32)
@@ -18,7 +18,7 @@ def test_basic_insert_and_size():
 
 
 def test_dimension_mismatch():
-    index = MiniVecIndex(dim=4)
+    index = BinturongIndex(dim=4)
 
     with pytest.raises(ValueError):
         index.add(np.array([1.0, 2.0], dtype=np.float32))
@@ -26,7 +26,7 @@ def test_dimension_mismatch():
 
 def test_self_recall():
     dim = 8
-    index = MiniVecIndex(dim=dim, M=16)
+    index = BinturongIndex(dim=dim, M=16)
 
     vectors = np.random.randn(50, dim).astype(np.float32)
 
@@ -44,7 +44,7 @@ def test_self_recall():
 
 
 def test_search_with_stats():
-    index = MiniVecIndex(dim=8)
+    index = BinturongIndex(dim=8)
 
     data = np.random.randn(20, 8).astype(np.float32)
     for v in data:
@@ -63,7 +63,7 @@ def test_search_with_stats():
 
 def test_batch_insert_and_search_match_single_item_api():
     data = np.array([[0, 0], [1, 0], [0, 2]], dtype=np.float32)
-    index = MiniVecIndex(dim=2)
+    index = BinturongIndex(dim=2)
 
     assert index.add_many(data) == [0, 1, 2]
     batch_results = index.search_many(data, k=2)
@@ -71,7 +71,7 @@ def test_batch_insert_and_search_match_single_item_api():
     assert batch_results == single_results
 
     strided = np.arange(12, dtype=np.float64).reshape(3, 4)[:, ::2]
-    strided_index = MiniVecIndex(dim=2)
+    strided_index = BinturongIndex(dim=2)
     assert strided_index.add_many(strided) == [0, 1, 2]
     assert len(strided_index.search_many(strided, k=1)) == 3
 
@@ -81,7 +81,7 @@ def test_batch_insert_and_search_match_single_item_api():
 
 
 def test_batch_shape_validation():
-    index = MiniVecIndex(dim=2)
+    index = BinturongIndex(dim=2)
     with pytest.raises(ValueError, match="shape"):
         index.add_many(np.ones(2, dtype=np.float32))
     with pytest.raises(ValueError, match="shape"):
@@ -89,4 +89,4 @@ def test_batch_shape_validation():
 
 
 def test_set_beta_is_not_exposed_as_unsupported_api():
-    assert not hasattr(MiniVecIndex(dim=2), "set_beta")
+    assert not hasattr(BinturongIndex(dim=2), "set_beta")

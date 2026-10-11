@@ -3,7 +3,7 @@
  * @brief Utility functions for the HNSW index
  * @details
  * This file defines utility functions for the HNSW index.
- * Part of the MiniVec project.
+ * Part of the Binturong project.
  */
 #pragma once
 #include "hnsw_node.hpp"
@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace minivec
+namespace binturong
 {
 // Represents a search or graph candidate with an identifier and distance.
 struct Candidate

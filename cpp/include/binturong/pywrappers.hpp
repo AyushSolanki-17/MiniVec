@@ -12,7 +12,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-namespace minivec {
+namespace binturong {
 
 namespace py = pybind11;
 
@@ -47,4 +47,4 @@ py::float_ py_l2_squared_distance(const np_float1d& a, const np_float1d& b);
 //   L2 distance between a and b as a Python float.
 py::float_ py_l2_distance(const np_float1d& a, const np_float1d& b);
 
-}  // namespace minivec
+}  // namespace binturong

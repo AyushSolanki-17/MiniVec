@@ -86,7 +86,7 @@
     }
   ],
   "engines": {
-    "minivec": {
+    "binturong": {
       "build_seconds": 285.3145217500023,
       "peak_rss_mib": {
         "before_build": 561.1875,

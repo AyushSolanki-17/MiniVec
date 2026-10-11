@@ -1,4 +1,4 @@
-name: minivec
+name: binturong
 channels:
   - defaults
   - conda-forge

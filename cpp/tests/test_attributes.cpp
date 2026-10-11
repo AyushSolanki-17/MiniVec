@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "minivec/hnsw.hpp"
+#include "binturong/hnsw.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -10,7 +10,7 @@
 
 namespace
 {
-    using minivec::HNSWIndexSimple;
+    using binturong::HNSWIndexSimple;
 
     bool bitmap_has(const HNSWIndexSimple::BitmapResult &bitmap, std::size_t id)
     {

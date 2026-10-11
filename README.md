@@ -1,6 +1,8 @@
-# MiniVec
+# Binturong
 
 **A research-oriented C++ vector search implementation with Python bindings**
+
+*Binturong was previously named MiniVec. The GitHub repository keeps its original name for now.*
 
 [![CI](https://github.com/AyushSolanki-17/MiniVec/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AyushSolanki-17/MiniVec/actions/workflows/ci.yml)
 ![C++](https://img.shields.io/badge/C++-17-blue.svg)
@@ -13,9 +15,9 @@
 
 ## 🔍 Overview
 
-**MiniVec** is a research and learning reference for the Hierarchical Navigable Small World (HNSW) approximate nearest neighbor (ANN) algorithm. It is implemented in **C++17** and exposed to Python via **pybind11**.
+**Binturong** is a research and learning reference for the Hierarchical Navigable Small World (HNSW) approximate nearest neighbor (ANN) algorithm. It is implemented in **C++17** and exposed to Python via **pybind11**.
 
-MiniVec is intended for students, researchers, and engineers who want to inspect how an HNSW index is built and searched, then experiment with its parameters and implementation. The project prioritizes:
+Binturong is intended for students, researchers, and engineers who want to inspect how an HNSW index is built and searched, then experiment with its parameters and implementation. The project prioritizes:
 
 - exposing the **internal mechanics of HNSW**
 - make algorithm behavior observable through search statistics
@@ -54,7 +56,7 @@ yet.
 
 * C++17 compiler (GCC / Clang)
 * CMake ≥ 3.18
-* Python 3 with development headers when `MINIVEC_BUILD_PYTHON=ON` (the default); CMake fetches pybind11
+* Python 3 with development headers when `BINTURONG_BUILD_PYTHON=ON` (the default); CMake fetches pybind11
 * GoogleTest and Google Benchmark are fetched when their build options are enabled (both default to `ON`)
 
 ---
@@ -69,13 +71,13 @@ To build only the C++ library without Python, test, or benchmark dependencies:
 
 ```bash
 cmake -S cpp -B build/cpp-core \
-  -DMINIVEC_BUILD_PYTHON=OFF \
-  -DMINIVEC_BUILD_TESTS=OFF \
-  -DMINIVEC_BUILD_BENCHMARKS=OFF
+  -DBINTURONG_BUILD_PYTHON=OFF \
+  -DBINTURONG_BUILD_TESTS=OFF \
+  -DBINTURONG_BUILD_BENCHMARKS=OFF
 cmake --build build/cpp-core
 ```
 
-The default CMake configuration builds the Python extension, C++ tests, and benchmark target. Turn off the corresponding `MINIVEC_BUILD_*` options when configuring to omit those targets. On Windows, `scripts/build/build.ps1` runs the default Release build.
+The default CMake configuration builds the Python extension, C++ tests, and benchmark target. Turn off the corresponding `BINTURONG_BUILD_*` options when configuring to omit those targets. On Windows, `scripts/build/build.ps1` runs the default Release build.
 
 ---
 
@@ -85,13 +87,13 @@ The default CMake configuration builds the Python extension, C++ tests, and benc
 PYTHONPATH=build:$PYTHONPATH python -m pytest
 ```
 
-Build the extension with the same Python interpreter used to run tests. CMake creates `minivec_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests. To run the C++ tests after building, use `ctest --test-dir build --output-on-failure`.
+Build the extension with the same Python interpreter used to run tests. CMake creates `binturong_cpp` in `build/`; the command above makes it importable to the Python package and runs the Python tests. To run the C++ tests after building, use `ctest --test-dir build --output-on-failure`.
 
 ## Repository layout
 
 ```text
 cpp/                    C++ library, public headers, tests, and benchmarks
-minivec/                Python API wrapper
+binturong/                Python API wrapper
 tests/                  Python tests
 docs/                   Architecture and project documentation
 scripts/build/          Release, debug, test, benchmark, and Windows build entry points
@@ -104,7 +106,7 @@ Build output stays in root-level `build*` directories and is not source code.
 
 ## 📐 Architecture
 
-![MiniVec Architecture](./docs/images/HNSW.png)
+![Binturong Architecture](./docs/images/HNSW.png)
 
 High-level workflow:
 
@@ -168,7 +170,7 @@ The implementation uses a multi-layer proximity graph inspired by HNSW. Search c
 
 ### Design Philosophy
 
-MiniVec intentionally avoids hidden optimizations.
+Binturong intentionally avoids hidden optimizations.
 
 Goals:
 
@@ -203,7 +205,7 @@ This is useful for:
 
 ## 📊 Search Instrumentation
 
-MiniVec exposes runtime search metrics:
+Binturong exposes runtime search metrics:
 
 ```cpp
 struct SearchStats {
@@ -241,14 +243,14 @@ SIFT1M (1,000,000 × 128-dim vectors, 10,000 queries), `M=16`,
 Apple M5 (16 GB), macOS 26.6, commit `b0f3ae0`, measured 2026-10-10 alongside
 hnswlib 0.8.0 on the same machine:
 
-| ef_search | MiniVec Recall@10 | MiniVec QPS | hnswlib Recall@10 | hnswlib QPS |
+| ef_search | Binturong Recall@10 | Binturong QPS | hnswlib Recall@10 | hnswlib QPS |
 | ---: | ---: | ---: | ---: | ---: |
 | 32 | 0.904 | 13,606 | 0.904 | 12,533 |
 | 128 | 0.989 | 4,255 | 0.989 | 4,053 |
 | 256 | 0.997 | 2,314 | 0.997 | 2,259 |
 
 Both libraries reach the same recall at each `ef_search` with similar
-single-thread throughput; MiniVec built the index in 285 s versus 344 s. Full
+single-thread throughput; Binturong built the index in 285 s versus 344 s. Full
 sweep, plot and caveats are in [`docs/benchmarks.md`](docs/benchmarks.md); raw
 results are in [`docs/benchmark-results/2026-10-10-sift1m-compare.json`](docs/benchmark-results/2026-10-10-sift1m-compare.json).
 
@@ -256,7 +258,7 @@ Reproduce:
 
 ```bash
 python -m pip install ".[bench]"
-python scripts/benchmark_ann.py --dataset sift-128-euclidean --engines minivec,hnswlib \
+python scripts/benchmark_ann.py --dataset sift-128-euclidean --engines binturong,hnswlib \
     --M 16 --ef-construction 200 --ef-search 16 32 64 128 256 --output sift1m.json
 ```
 
@@ -270,14 +272,14 @@ dataset, parameters, hardware, build options and baseline implementation match.
 Example usage from Python:
 
 ```python
-import minivec
+import binturong
 import numpy as np
 
 vectors = np.random.default_rng(42).normal(size=(100, 128)).astype(np.float32)
 query = vectors[0]
 queries = vectors[:5]
 
-index = minivec.MiniVecIndex(
+index = binturong.BinturongIndex(
     dim=128,
     M=32,
     ef_construction=200,
@@ -291,7 +293,7 @@ batch_results = index.search_many(queries, k=10)
 results, stats = index.search_with_stats(query, k=10)
 ```
 
-`MiniVecIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. Set `deterministic=True` and a fixed `seed` to make serial graph builds repeatable for the same insertion order. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, total distance calls (greedy descent, ef-search, and final scoring), greedy hops by layer, candidate-queue stability, adjacent result-distance gaps, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
+`BinturongIndex` also provides `add_many(vectors)` and `search_many(queries, k)` for 2D NumPy arrays. The constructor accepts `distance` and `final_distance`; supported names are `l2_squared`, `l2`, `cosine`, and `inner_product`. Set `deterministic=True` and a fixed `seed` to make serial graph builds repeatable for the same insertion order. `search_with_stats` returns `(results, stats)`, where stats includes visited nodes, total distance calls (greedy descent, ef-search, and final scoring), greedy hops by layer, candidate-queue stability, adjacent result-distance gaps, and per-layer visits. The `size`, `entry_point`, and `max_level` properties expose index state.
 
 Use `index.set_ef_search(value)` to tune the default query breadth after building the graph. It affects subsequent scalar and batch searches and can be adjusted while other threads are querying; larger values generally trade latency for recall.
 
@@ -303,7 +305,7 @@ The constructor requires positive integer values for `dim`, `M`, `ef_constructio
 
 ## 🧠 Project Scope
 
-MiniVec gives readers a compact codebase for studying graph construction, approximate search, distance metrics, concurrency, and recall/latency tradeoffs. Search instrumentation and deterministic serial builds support repeatable experiments. The project does not yet provide persistence, deletion, update operations, distributed search, or prebuilt platform wheels.
+Binturong gives readers a compact codebase for studying graph construction, approximate search, distance metrics, concurrency, and recall/latency tradeoffs. Search instrumentation and deterministic serial builds support repeatable experiments. The project does not yet provide persistence, deletion, update operations, distributed search, or prebuilt platform wheels.
 
 ---
 
@@ -321,7 +323,7 @@ Possible research directions:
 
 ## 📄 License
 
-MiniVec is licensed under the [Apache License 2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
+Binturong is licensed under the [Apache License 2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
 
 ---
 
@@ -337,4 +339,4 @@ and by open-source implementations such as:
 * FAISS
 * hnswlib
 
-MiniVec aims to provide a **minimal, transparent implementation for learning and experimentation**.
+Binturong aims to provide a **minimal, transparent implementation for learning and experimentation**.

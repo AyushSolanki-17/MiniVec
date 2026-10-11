@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"
-#include "minivec/dist.hpp"
+#include "binturong/hnsw.hpp"
+#include "binturong/dist.hpp"
 
 #include <vector>
 #include <random>
@@ -21,7 +21,7 @@ static std::vector<int> brute_force_knn(
 
     for (int i = 0; i < (int)db.size(); ++i) {
         // CHange function according to distance metric
-        float d = minivec::l2_squared_distance(
+        float d = binturong::l2_squared_distance(
             query.data(), db[i].data(), query.size());
         dists.emplace_back(d, i);
     }
@@ -128,7 +128,7 @@ struct CSVWriter {
     for (int efC : efCs)
     for (int efS : efSs)
     {
-        minivec::HNSWIndexSimple index(dim, M, efC, efS);
+        binturong::HNSWIndexSimple index(dim, M, efC, efS);
         for (int i = 0; i < N; ++i)
             index.insert_vector(db[i].data());
 

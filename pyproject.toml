@@ -3,7 +3,7 @@ requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "minivec-ann"
+name = "binturong"
 version = "0.1.0"
 description = "A research-oriented C++ HNSW vector search implementation with Python bindings"
 readme = "README.md"
@@ -23,13 +23,13 @@ classifiers = [
 bench = ["h5py>=3.8", "hnswlib>=0.8", "matplotlib>=3.7"]
 
 [tool.scikit-build]
-wheel.packages = ["minivec"]
+wheel.packages = ["binturong"]
 cmake.source-dir = "cpp"
 cmake.build-type = "Release"
 cmake.args = [
-  "-DMINIVEC_BUILD_PYTHON=ON",
-  "-DMINIVEC_BUILD_TESTS=OFF",
-  "-DMINIVEC_BUILD_BENCHMARKS=OFF",
+  "-DBINTURONG_BUILD_PYTHON=ON",
+  "-DBINTURONG_BUILD_TESTS=OFF",
+  "-DBINTURONG_BUILD_BENCHMARKS=OFF",
 ]
 
 [tool.ruff]

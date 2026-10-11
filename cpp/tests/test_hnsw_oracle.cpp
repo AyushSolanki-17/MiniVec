@@ -4,7 +4,7 @@
 // compares search results against exact brute-force neighbors, and checks
 // that at least 99.9% of nodes are reachable from the entry point on layer 0.
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"
+#include "binturong/hnsw.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -45,8 +45,8 @@ Matrix clustered_vectors(int count, const Matrix &centers, std::mt19937 &rng) {
     return out;
 }
 
-std::vector<minivec::NodeId> exact_knn(const std::vector<float> &q, const Matrix &db, int k) {
-    std::vector<std::pair<float, minivec::NodeId>> dists;
+std::vector<binturong::NodeId> exact_knn(const std::vector<float> &q, const Matrix &db, int k) {
+    std::vector<std::pair<float, binturong::NodeId>> dists;
     dists.reserve(db.size());
     for (std::size_t i = 0; i < db.size(); ++i) {
         float d = 0.0f;
@@ -54,15 +54,15 @@ std::vector<minivec::NodeId> exact_knn(const std::vector<float> &q, const Matrix
             const float diff = q[j] - db[i][j];
             d += diff * diff;
         }
-        dists.emplace_back(d, static_cast<minivec::NodeId>(i));
+        dists.emplace_back(d, static_cast<binturong::NodeId>(i));
     }
     std::partial_sort(dists.begin(), dists.begin() + k, dists.end());
-    std::vector<minivec::NodeId> ids;
+    std::vector<binturong::NodeId> ids;
     for (int i = 0; i < k; ++i) ids.push_back(dists[i].second);
     return ids;
 }
 
-double mean_recall(minivec::HNSWIndexSimple &index, const Matrix &db, const Matrix &queries) {
+double mean_recall(binturong::HNSWIndexSimple &index, const Matrix &db, const Matrix &queries) {
     double total = 0.0;
     for (const auto &q : queries) {
         const auto truth = exact_knn(q, db, kK);
@@ -76,10 +76,10 @@ double mean_recall(minivec::HNSWIndexSimple &index, const Matrix &db, const Matr
     return total / queries.size();
 }
 
-std::size_t layer0_reachable(const minivec::HNSWIndexSimple &index) {
+std::size_t layer0_reachable(const binturong::HNSWIndexSimple &index) {
     const auto count = static_cast<std::size_t>(index.get_node_count());
     std::vector<bool> seen(count, false);
-    std::queue<minivec::NodeId> pending;
+    std::queue<binturong::NodeId> pending;
     pending.push(index.get_entry_point());
     seen[pending.front()] = true;
     std::size_t reached = 1;
@@ -97,8 +97,8 @@ std::size_t layer0_reachable(const minivec::HNSWIndexSimple &index) {
     return reached;
 }
 
-std::unique_ptr<minivec::HNSWIndexSimple> build(const Matrix &db) {
-    auto index = std::make_unique<minivec::HNSWIndexSimple>(
+std::unique_ptr<binturong::HNSWIndexSimple> build(const Matrix &db) {
+    auto index = std::make_unique<binturong::HNSWIndexSimple>(
         kDim, kM, kEfConstruction, kEfSearch, /*deterministic_levelgen=*/true, /*levelgen_seed=*/7);
     for (const auto &v : db) index->insert_vector(v.data());
     return index;

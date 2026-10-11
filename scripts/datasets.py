@@ -25,7 +25,7 @@ def _download(url, dest):
     tmp = dest.with_suffix(dest.suffix + ".part")
     dest.parent.mkdir(parents=True, exist_ok=True)
     # The dataset host rejects urllib's default user agent.
-    request = urllib.request.Request(url, headers={"User-Agent": "minivec-benchmark/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "binturong-benchmark/1.0"})
     with urllib.request.urlopen(request) as response, open(tmp, "wb") as out:
         total = int(response.headers.get("Content-Length") or 0)
         done = 0
@@ -52,7 +52,7 @@ def load(name, cache_dir="data/ann"):
     try:
         import h5py
     except ImportError as exc:
-        raise SystemExit("h5py is required: pip install 'minivec-ann[bench]'") from exc
+        raise SystemExit("h5py is required: pip install 'binturong[bench]'") from exc
 
     path = Path(cache_dir) / f"{name}.hdf5"
     if not path.exists():

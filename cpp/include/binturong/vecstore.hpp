@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-namespace minivec {
+namespace binturong {
 // Stores fixed-dimensional vectors in stable, independently contiguous blocks.
 //
 // Vectors are appended sequentially and addressed by a signed 64-bit id in
@@ -60,4 +60,4 @@ struct VecStore {
 
   inline void pop_back() { data.pop_back(); }
 };
-}  // namespace minivec
+}  // namespace binturong

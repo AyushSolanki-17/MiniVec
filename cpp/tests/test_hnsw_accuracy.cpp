@@ -1,7 +1,7 @@
 // tests/test_hnsw_accuracy.cpp
 #include <gtest/gtest.h>
-#include "minivec/hnsw.hpp"
-#include "minivec/dist.hpp"
+#include "binturong/hnsw.hpp"
+#include "binturong/dist.hpp"
 #include <vector>
 #include <random>
 #include <algorithm>
@@ -59,7 +59,7 @@ TEST(HNSWAccuracy, RecallSmallDataset) {
 
     // Build index
     // experiment: increase connectivity and construction ef
-    minivec::HNSWIndexSimple index(dim, /*M=*/32, /*efConstruction=*/200, /*efSearch=*/100);
+    binturong::HNSWIndexSimple index(dim, /*M=*/32, /*efConstruction=*/200, /*efSearch=*/100);
     //HNSWIndexSimple index(dim);
     for (int i=0;i<N;++i) index.insert_vector(db[i].data());
 
@@ -90,7 +90,7 @@ TEST(HNSWDebug, LevelGeneratorIsolated) {
     const int M = 16;
     const int N = 10000;
     
-    auto gen = minivec::HNSWLevelGenerator::from_M(M);
+    auto gen = binturong::HNSWLevelGenerator::from_M(M);
     
     std::cout << "Generator config:\n";
     std::cout << "  p = " << gen.p() << "\n";

@@ -1,5 +1,5 @@
 #include <benchmark/benchmark.h>
-#include "minivec/hnsw.hpp"
+#include "binturong/hnsw.hpp"
 
 static void BM_HNSW_Search(benchmark::State& state)
 {
@@ -7,7 +7,7 @@ static void BM_HNSW_Search(benchmark::State& state)
     const int N = 10'000;
     const int efSearch = state.range(0);
 
-    minivec::HNSWIndexSimple index(dim, 32, 200, efSearch);
+    binturong::HNSWIndexSimple index(dim, 32, 200, efSearch);
 
     std::mt19937 rng(42);
     std::normal_distribution<float> dist(0,1);

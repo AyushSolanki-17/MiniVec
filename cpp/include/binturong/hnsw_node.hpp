@@ -5,7 +5,7 @@
  * @details
  * This file defines the HNSWNodeSimple class, which represents a node in a
  * HNSW (Hierarchical Navigable Small World) graph.
- * Part of the MiniVec project.
+ * Part of the Binturong project.
  */
 #pragma once
 
@@ -16,10 +16,10 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace minivec
+namespace binturong
 {
     using NodeId = std::int64_t;
-    // Simple HNSW node representation used by the MiniVec HNSW engine.
+    // Simple HNSW node representation used by the Binturong HNSW engine.
     //
     // Each node has a 64-bit id, a highest layer index, and per-layer neighbor
     // lists. This type is intentionally minimal and relies only on standard
@@ -158,4 +158,4 @@ namespace minivec
         bool add_neighbor_nolock(NodeId id, int layer, int *out_index = nullptr);
         bool remove_neighbor_nolock(NodeId id, int layer, bool preserve_order = true);
     };
-} // namespace minivec
+} // namespace binturong

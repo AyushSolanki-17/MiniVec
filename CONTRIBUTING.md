@@ -1,6 +1,6 @@
-# Contributing to MiniVec
+# Contributing to Binturong
 
-Thanks for your interest in MiniVec. The project is **pre-alpha**: the C++ HNSW
+Thanks for your interest in Binturong. The project is **pre-alpha**: the C++ HNSW
 engine is an experimental codebase used to validate correctness and performance
 ideas, and its APIs, file layout and repository structure may change
 substantially. Please open an issue to discuss larger changes before writing code.
@@ -24,11 +24,11 @@ PYTHONPATH=build:$PYTHONPATH python3 -m pytest -q
 ruff check .
 ```
 
-The Python extension is built for one specific interpreter. If `import minivec_cpp`
+The Python extension is built for one specific interpreter. If `import binturong_cpp`
 fails, reconfigure with `-DPython_EXECUTABLE` pointing at the Python you test with.
 
-For sanitizer builds, configure with `-DMINIVEC_SANITIZE=address` (ASAN + UBSAN) or
-`-DMINIVEC_SANITIZE=thread` (TSAN) in a separate build directory.
+For sanitizer builds, configure with `-DBINTURONG_SANITIZE=address` (ASAN + UBSAN) or
+`-DBINTURONG_SANITIZE=thread` (TSAN) in a separate build directory.
 
 ## Pull requests
 

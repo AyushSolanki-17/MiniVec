@@ -24,7 +24,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Release
-          -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+          -DBINTURONG_BUILD_PYTHON=OFF -DBINTURONG_BUILD_BENCHMARKS=OFF
       - name: Build
         run: cmake --build build -j 4
       - name: Test
@@ -54,8 +54,8 @@ jobs:
       - name: Configure
         run: >
           cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-O1 -g"
-          -DMINIVEC_SANITIZE=${{ matrix.sanitizer }}
-          -DMINIVEC_BUILD_PYTHON=OFF -DMINIVEC_BUILD_BENCHMARKS=OFF
+          -DBINTURONG_SANITIZE=${{ matrix.sanitizer }}
+          -DBINTURONG_BUILD_PYTHON=OFF -DBINTURONG_BUILD_BENCHMARKS=OFF
 
       - name: Build
         run: cmake --build build -j 4

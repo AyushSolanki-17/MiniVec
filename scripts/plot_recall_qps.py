@@ -18,7 +18,7 @@ def main():
     import matplotlib.pyplot as plt
 
     report = json.loads(args.report.read_text(encoding="utf-8"))
-    engines = report.get("engines") or {"minivec": {"configurations": report["configurations"]}}
+    engines = report.get("engines") or {"binturong": {"configurations": report["configurations"]}}
     dataset = report["dataset"]
     env = report["environment"]
 

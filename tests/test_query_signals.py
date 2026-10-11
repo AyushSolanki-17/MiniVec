@@ -1,12 +1,12 @@
 import numpy as np
 
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 from scripts.query_signals import build_query_signal_row
 
 
 def test_build_query_signal_row_contains_scalar_signals_and_recall():
     vectors = np.array([[0, 0], [1, 0], [0, 1], [2, 2]], dtype=np.float32)
-    index = MiniVecIndex(
+    index = BinturongIndex(
         dim=2,
         M=4,
         ef_construction=10,

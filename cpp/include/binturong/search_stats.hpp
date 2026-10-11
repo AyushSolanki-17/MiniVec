@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
-namespace minivec
+namespace binturong
 {
     struct SearchStats
     {
@@ -27,4 +27,4 @@ namespace minivec
         std::string search_strategy;
         uint64_t filter_rejected_candidates = 0;
     };
-} // namespace minivec
+} // namespace binturong

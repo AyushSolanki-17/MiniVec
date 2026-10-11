@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export per-query MiniVec search signals and exact recall to CSV."""
+"""Export per-query Binturong search signals and exact recall to CSV."""
 
 import argparse
 import csv
@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from minivec import MiniVecIndex
+from binturong import BinturongIndex
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import datasets  # noqa: E402
@@ -110,7 +110,7 @@ def main():
         truth_ids = [set(row[:args.k].tolist()) for row in neighbors]
         truth_source = "published ground truth"
 
-    index = MiniVecIndex(
+    index = BinturongIndex(
         dim=vectors.shape[1],
         M=args.M,
         ef_construction=args.ef_construction,
