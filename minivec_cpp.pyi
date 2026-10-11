@@ -18,7 +18,11 @@ def l2_squared(a: np.ndarray, b: np.ndarray) -> np.float32: ...
 class SearchStats:
     visited_nodes: int
     distance_calls: int
+    greedy_hops: int
+    hops_per_layer: Dict[int, int]
     layer_visits: Dict[int, int]
+    candidate_queue_stability: float
+    result_distance_gaps: List[float]
 
     def __init__(self) -> None: ...
 
@@ -63,7 +67,7 @@ class HNSWIndexSimple:
         self,
         query: np.ndarray,
         k: int,
-    ) -> Tuple[List[Tuple[int, float]], Dict[str, int]]: ...
+    ) -> Tuple[List[Tuple[int, float]], Dict[str, object]]: ...
 
     def search_batch(
         self, queries: np.ndarray, k: int

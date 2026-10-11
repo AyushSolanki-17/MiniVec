@@ -55,6 +55,10 @@ def test_search_with_stats():
     assert isinstance(results, list)
     assert "visited_nodes" in stats
     assert "distance_calls" in stats
+    assert "greedy_hops" in stats
+    assert "hops_per_layer" in stats
+    assert 0.0 <= stats["candidate_queue_stability"] <= 1.0
+    assert len(stats["result_distance_gaps"]) == max(0, len(results) - 1)
 
 
 def test_batch_insert_and_search_match_single_item_api():

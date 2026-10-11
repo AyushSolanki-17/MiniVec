@@ -467,6 +467,8 @@ namespace minivec
             // cache current pointer once
             const float *pv_curr = store.ptr(current);
             float best_dist = compute_distance(distance_func, query, pv_curr, dim);
+            if (stats)
+                ++stats->distance_calls;
             // Explore neighbors
             nodes[current]->for_each_neighbor(layer, [&](NodeId neighbor) {
                 if (neighbor < 0 || neighbor >= n_nodes)
@@ -476,6 +478,8 @@ namespace minivec
                     return;
 
                 float c_dist = compute_distance(distance_func, query, pv_nei, dim);
+                if (stats)
+                    ++stats->distance_calls;
                 // Check for improvement
                 if (c_dist < best_dist)
                 {
@@ -484,7 +488,10 @@ namespace minivec
                     pv_curr = pv_nei;
                     improved = true;
                     if (stats)
+                    {
                         ++stats->greedy_hops;
+                        ++stats->hops_per_layer[layer];
+                    }
                 }
             });
         }
@@ -551,6 +558,8 @@ namespace minivec
             workspace.current_epoch = 1;
         }
         const uint32_t visit_epoch = workspace.current_epoch;
+        uint64_t queue_observations = 1;
+        uint64_t queue_changes = 1;
         // Initialize with entry point.
         NodeId current = entry_id;
         float curr_dist = compute_distance(distance_func, query, store.ptr(current), dim);
@@ -613,12 +622,16 @@ namespace minivec
                     const int search_width = std::max(1, ef);
                     if (static_cast<int>(best_nodes.size()) < search_width)
                     {
+                        ++queue_observations;
+                        ++queue_changes;
                         candidates.emplace(neighbor, dist);
                         best_nodes.emplace(neighbor, dist);
                         worst_best_distance = best_nodes.top().distance;
                     }
                     else if (dist < worst_best_distance)
                     {
+                        ++queue_observations;
+                        ++queue_changes;
                         candidates.emplace(neighbor, dist);
                         best_nodes.pop();
                         best_nodes.emplace(neighbor, dist);
@@ -626,9 +639,16 @@ namespace minivec
                         // adjacency list.
                         worst_best_distance = best_nodes.top().distance;
                     }
+                    else
+                    {
+                        ++queue_observations;
+                    }
                 }
             });
         }
+        if (stats && queue_observations != 0)
+            stats->candidate_queue_stability = 1.0 -
+                static_cast<double>(queue_changes) / static_cast<double>(queue_observations);
         return best_nodes;
     }
 
@@ -669,7 +689,7 @@ namespace minivec
         int effective_ef = std::max(configured_ef, k);
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> candidates = ef_search_layer_unlocked(query, current, 0, effective_ef, stats);
 
-        return filter_top_k_unlocked(query, candidates, k, false);
+        return filter_top_k_unlocked(query, candidates, k, false, false, stats);
     }
 
     // Filters candidates to produce a top-k result set, optionally applying
@@ -704,7 +724,8 @@ namespace minivec
         std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> &candidates_pq,
         int k,
         bool diversity,
-        bool backfill)
+        bool backfill,
+        SearchStats *stats)
     {
         if (k < 0)
             throw std::invalid_argument("filter_top_k: k must not be negative");
@@ -770,9 +791,20 @@ namespace minivec
         for (Candidate &c : top_k)
         {
             c.distance = compute_distance(final_distance_func, query, get_vector_ptr_unlocked(c.id), dim);
+            if (stats)
+                ++stats->distance_calls;
         }
 
         std::sort(top_k.begin(), top_k.end(), candidate_distance_less);
+
+        if (stats)
+        {
+            stats->result_distance_gaps.clear();
+            if (top_k.size() > 1)
+                stats->result_distance_gaps.reserve(top_k.size() - 1);
+            for (size_t i = 1; i < top_k.size(); ++i)
+                stats->result_distance_gaps.push_back(top_k[i].distance - top_k[i - 1].distance);
+        }
 
         return top_k;
     }
