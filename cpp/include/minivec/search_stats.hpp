@@ -3,6 +3,7 @@
 #include <map>
 #include <cstdint>
 #include <vector>
+#include <string>
 namespace minivec
 {
     struct SearchStats
@@ -22,5 +23,8 @@ namespace minivec
         double candidate_queue_stability = 1.0;
         // Adjacent distance gaps in the final results, sorted by distance.
         std::vector<float> result_distance_gaps;
+        // Filter execution details; empty strategy denotes an ordinary search.
+        std::string search_strategy;
+        uint64_t filter_rejected_candidates = 0;
     };
 } // namespace minivec

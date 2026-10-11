@@ -723,6 +723,196 @@ namespace minivec
         return filter_top_k_unlocked(query, candidates, k, false, false, stats);
     }
 
+    std::vector<Candidate> HNSWIndexSimple::search_filtered_top_k(
+        const float *query,
+        int ef,
+        int k,
+        const std::vector<std::uint64_t> &filter_bitmap,
+        const std::string &strategy,
+        int expansion_factor,
+        SearchStats *stats)
+    {
+        if (k < 0)
+            throw std::invalid_argument("search_filtered_top_k: k must not be negative");
+        if (expansion_factor <= 0)
+            throw std::invalid_argument("search_filtered_top_k: expansion_factor must be positive");
+        if (strategy != "brute_force" && strategy != "filtered_traversal" && strategy != "post_filter")
+            throw std::invalid_argument("search_filtered_top_k: unknown strategy");
+        validate_vector(query, dim, "search_filtered_top_k");
+        if (stats)
+        {
+            stats->search_strategy = strategy;
+            stats->filter_rejected_candidates = 0;
+        }
+        if (k == 0)
+            return {};
+
+        std::shared_lock<std::shared_mutex> idx_lock(index_mtx);
+        if (nodes.empty() || entry_point < 0)
+            return {};
+        const auto allowed = [&](NodeId id) {
+            const size_t word = static_cast<size_t>(id) / 64;
+            return word < filter_bitmap.size() &&
+                   (filter_bitmap[word] & (std::uint64_t{1} << (static_cast<size_t>(id) % 64))) != 0;
+        };
+        const auto finish = [&](const std::vector<Candidate> &selected) {
+            std::vector<Candidate> results;
+            results.reserve(std::min(static_cast<size_t>(k), selected.size()));
+            for (const auto &candidate : selected)
+            {
+                const float distance = compute_distance(
+                    final_distance_func, query, store.ptr(candidate.id), dim);
+                if (stats)
+                    ++stats->distance_calls;
+                results.emplace_back(candidate.id, distance);
+            }
+            std::sort(results.begin(), results.end(), candidate_distance_less);
+            if (results.size() > static_cast<size_t>(k))
+                results.erase(results.begin() + k, results.end());
+            if (stats)
+            {
+                stats->result_distance_gaps.clear();
+                for (size_t i = 1; i < results.size(); ++i)
+                    stats->result_distance_gaps.push_back(results[i].distance - results[i - 1].distance);
+            }
+            return results;
+        };
+
+        const int configured_ef = ef > 0 ? ef : efSearch.load(std::memory_order_relaxed);
+        const int bounded_ef = std::max(configured_ef, k);
+        if (strategy == "brute_force")
+        {
+            std::vector<Candidate> matches;
+            for (size_t id = 0; id < nodes.size(); ++id)
+            {
+                if (allowed(static_cast<NodeId>(id)))
+                {
+                    const float distance = compute_distance(
+                        final_distance_func, query, store.ptr(static_cast<NodeId>(id)), dim);
+                    matches.emplace_back(static_cast<NodeId>(id), distance);
+                    if (stats)
+                    {
+                        ++stats->visited_nodes;
+                        ++stats->distance_calls;
+                    }
+                }
+                else if (stats)
+                {
+                    ++stats->filter_rejected_candidates;
+                }
+            }
+            std::sort(matches.begin(), matches.end(), candidate_distance_less);
+            if (stats)
+                stats->result_distance_gaps.clear();
+            if (matches.size() > static_cast<size_t>(k))
+                matches.erase(matches.begin() + k, matches.end());
+            if (stats)
+                for (size_t i = 1; i < matches.size(); ++i)
+                    stats->result_distance_gaps.push_back(matches[i].distance - matches[i - 1].distance);
+            return matches;
+        }
+
+        NodeId current = entry_point;
+        for (int layer = max_layer; layer > 0; --layer)
+            current = greedy_search_layer_unlocked(query, current, layer, stats);
+
+        if (strategy == "post_filter")
+        {
+            const auto max_int = std::numeric_limits<int>::max();
+            const int scaled_ef = configured_ef > max_int / expansion_factor
+                                      ? max_int
+                                      : configured_ef * expansion_factor;
+            const int search_width = std::max({scaled_ef, k, 1});
+            auto candidates = ef_search_layer_unlocked(query, current, 0, search_width, stats);
+            std::vector<Candidate> matching;
+            while (!candidates.empty())
+            {
+                const auto candidate = candidates.top();
+                candidates.pop();
+                if (allowed(candidate.id))
+                    matching.push_back(candidate);
+                else if (stats)
+                    ++stats->filter_rejected_candidates;
+            }
+            return finish(matching);
+        }
+
+        std::priority_queue<Candidate, std::vector<Candidate>, MinHeapCompare> frontier;
+        std::priority_queue<Candidate, std::vector<Candidate>, MaxHeapCompare> best_allowed;
+        std::vector<std::uint8_t> visited(nodes.size(), 0);
+        const float entry_distance = compute_distance(distance_func, query, store.ptr(current), dim);
+        if (stats)
+        {
+            ++stats->visited_nodes;
+            ++stats->layer_visits[0];
+            ++stats->distance_calls;
+        }
+        visited[static_cast<size_t>(current)] = 1;
+        frontier.emplace(current, entry_distance);
+        if (allowed(current))
+            best_allowed.emplace(current, entry_distance);
+        else if (stats)
+            ++stats->filter_rejected_candidates;
+
+        uint64_t queue_observations = 1;
+        uint64_t queue_changes = allowed(current) ? 1 : 0;
+        while (!frontier.empty())
+        {
+            const Candidate candidate = frontier.top();
+            frontier.pop();
+            if (best_allowed.size() >= static_cast<size_t>(bounded_ef) &&
+                candidate.distance > best_allowed.top().distance)
+                break;
+
+            nodes[static_cast<size_t>(candidate.id)]->for_each_neighbor(0, [&](NodeId neighbor) {
+                if (neighbor < 0 || static_cast<size_t>(neighbor) >= nodes.size() ||
+                    visited[static_cast<size_t>(neighbor)])
+                    return;
+                visited[static_cast<size_t>(neighbor)] = 1;
+                const float distance = compute_distance(distance_func, query, store.ptr(neighbor), dim);
+                if (stats)
+                {
+                    ++stats->visited_nodes;
+                    ++stats->layer_visits[0];
+                    ++stats->distance_calls;
+                }
+                ++queue_observations;
+                if (!allowed(neighbor))
+                {
+                    if (stats)
+                        ++stats->filter_rejected_candidates;
+                    frontier.emplace(neighbor, distance);
+                    return;
+                }
+                if (best_allowed.size() < static_cast<size_t>(bounded_ef))
+                {
+                    best_allowed.emplace(neighbor, distance);
+                    frontier.emplace(neighbor, distance);
+                    ++queue_changes;
+                }
+                else if (distance < best_allowed.top().distance)
+                {
+                    best_allowed.pop();
+                    best_allowed.emplace(neighbor, distance);
+                    frontier.emplace(neighbor, distance);
+                    ++queue_changes;
+                }
+            });
+        }
+        if (stats && queue_observations != 0)
+            stats->candidate_queue_stability = 1.0 -
+                static_cast<double>(queue_changes) / static_cast<double>(queue_observations);
+
+        std::vector<Candidate> selected;
+        selected.reserve(best_allowed.size());
+        while (!best_allowed.empty())
+        {
+            selected.push_back(best_allowed.top());
+            best_allowed.pop();
+        }
+        return finish(selected);
+    }
+
     // Filters candidates to produce a top-k result set, optionally applying
     // the HNSW diversity heuristic before filling any remaining slots.
     //
