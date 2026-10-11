@@ -7,10 +7,12 @@ name = "minivec-ann"
 version = "0.1.0"
 description = "A research-oriented C++ HNSW vector search implementation with Python bindings"
 readme = "README.md"
+license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.21"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: C++",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
