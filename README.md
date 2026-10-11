@@ -311,6 +311,12 @@ Possible research directions:
 
 ---
 
+## 📄 License
+
+MiniVec is licensed under the [Apache License 2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
+
+---
+
 ## 🙌 Acknowledgements
 
 This project is inspired by the original **HNSW paper**:
