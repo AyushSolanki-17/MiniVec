@@ -32,7 +32,7 @@ FIXED_COLUMNS = [
 ]
 
 
-def build_query_signal_row(index, query, query_id, ef_search, truth_ids, k):
+def build_query_signal_row(index, query, query_id, ef_search, truth_ids, k, include_results=False):
     """Search one query and return scalar signals plus exact recall."""
     index.set_ef_search(ef_search)
     started = time.perf_counter_ns()
@@ -55,6 +55,10 @@ def build_query_signal_row(index, query, query_id, ef_search, truth_ids, k):
         "latency_us": latency_us,
         "recall_at_k": len(result_ids.intersection(truth_ids)) / k,
     }
+    if include_results:
+        row["result_ids"] = ";".join(str(node_id) for node_id, _ in results)
+        row["first_distance"] = results[0][1] if results else ""
+        row["kth_distance"] = results[-1][1] if results else ""
     row.update({
         f"hops_layer_{layer}": stats["hops_per_layer"].get(layer, 0)
         for layer in range(1, index.max_level + 1)
@@ -75,6 +79,10 @@ def parse_args():
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--include-results", action="store_true",
+        help="include ordered result IDs and first/kth distances for convergence analysis",
+    )
     args = parser.parse_args()
 
     if args.M <= 0 or args.ef_construction <= 0 or args.k <= 0:
@@ -124,12 +132,14 @@ def main():
     for ef_search in args.ef_search:
         for query_id, (query, truth) in enumerate(zip(queries, truth_ids)):
             rows.append(build_query_signal_row(
-                index, query, query_id, ef_search, truth, args.k
+                index, query, query_id, ef_search, truth, args.k, args.include_results
             ))
 
     output = args.output or Path("data/signals") / f"{args.dataset}.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     columns = FIXED_COLUMNS + sorted({key for row in rows for key in row} - set(FIXED_COLUMNS))
+    if args.include_results:
+        columns.extend(["result_ids", "first_distance", "kth_distance"])
     with output.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
