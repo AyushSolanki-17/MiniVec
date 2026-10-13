@@ -1,4 +1,10 @@
-from scripts.experiments.e4_filter_planner import aggregate, choose_strategy
+from scripts.experiments.e4_filter_planner import (
+    aggregate,
+    choose_cost_model_strategy,
+    choose_strategy,
+    crossover_selectivity,
+    fit_traversal_cost_model,
+)
 import pytest
 
 
@@ -47,3 +53,29 @@ def test_aggregation_reports_calls_latency_recall_and_completeness():
     assert summary["complete_fraction"] == 0.95
     assert summary["result_count_mean"] == 10
     assert summary["latency_ms_median"] == pytest.approx(0.15)
+
+
+def test_cost_model_fits_tune_traversal_work_and_selects_lower_estimated_cost():
+    rows = [
+        {"split": "tune", "strategy": "filtered_traversal", "matching_count": count,
+         "distance_calls": calls}
+        for count, calls in ((0, 100), (100, 110), (1000, 200))
+    ]
+
+    model = fit_traversal_cost_model(rows)
+
+    assert model["intercept"] == pytest.approx(100)
+    assert model["slope"] == pytest.approx(0.1)
+    assert choose_cost_model_strategy(50, model) == "brute_force"
+    assert choose_cost_model_strategy(1000, model) == "filtered_traversal"
+
+
+def test_crossover_interpolates_between_held_out_selectivities():
+    rows = [
+        record("brute_force", 0.01, 100),
+        record("filtered_traversal", 0.01, 200),
+        record("brute_force", 0.20, 1000),
+        record("filtered_traversal", 0.20, 200),
+    ]
+
+    assert crossover_selectivity(rows) == pytest.approx(0.01 + 100 / 900 * 0.19)
