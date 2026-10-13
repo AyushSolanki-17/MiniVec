@@ -64,6 +64,7 @@ def generate_workload(
     seed=42,
     k=10,
     clusters=16,
+    shared_filter_count=None,
 ):
     """Return arrays containing vector attributes, predicates, and exact filtered top-k."""
     vectors = np.asarray(vectors, dtype=np.float32)
@@ -89,8 +90,19 @@ def generate_workload(
         raise ValueError("each selectivity must admit at least k vectors")
 
     rng = np.random.default_rng(seed)
-    attributes = np.zeros((len(vectors), len(queries) * len(requested)), dtype=np.uint8)
-    attribute_names = []
+    shared = shared_filter_count is not None
+    filter_count = len(queries) if shared_filter_count is None else int(shared_filter_count)
+    if filter_count <= 0:
+        raise ValueError("shared_filter_count must be positive")
+    if mode == "correlated" and shared:
+        if filter_count % 2 or filter_count // 2 > clusters:
+            raise ValueError("correlated shared filters need an even count no greater than 2*clusters")
+
+    attributes = np.zeros((len(vectors), filter_count * len(requested)), dtype=np.uint8)
+    attribute_names = [
+        f"filter_shared_{filter_id:02d}" if shared else f"filter_q{filter_id:04d}"
+        for filter_id in range(filter_count)
+    ]
     predicates = []
     allowed_ids = []
     relation_by_query = []
@@ -100,26 +112,51 @@ def generate_workload(
         cluster_ids, centroids = _kmeans(vectors, clusters, seed)
         query_clusters = _nearest_centroids(queries, centroids)
 
-    for query_id, query in enumerate(queries):
-        relation = (
-            ("match" if rng.integers(2) == 0 else "avoid")
-            if mode == "correlated"
-            else "random"
-        )
-        relation_by_query.append(relation)
-        own_cluster = int(query_clusters[query_id])
+    if mode == "correlated":
+        relation_by_query = ["match" if rng.integers(2) == 0 else "avoid"
+                             for _ in queries]
+        if shared:
+            group_count = filter_count // 2
+            query_filter_ids = np.asarray([
+                (group_count if relation == "avoid" else 0)
+                + int(query_cluster) % group_count
+                for relation, query_cluster in zip(relation_by_query, query_clusters)
+            ], dtype=np.int32)
+        else:
+            query_filter_ids = np.arange(len(queries), dtype=np.int32)
+    elif shared:
+        query_filter_ids = rng.integers(filter_count, size=len(queries), dtype=np.int32)
+        relation_by_query = ["random"] * len(queries)
+    else:
+        query_filter_ids = np.arange(len(queries), dtype=np.int32)
+        relation_by_query = ["random"] * len(queries)
+
+    group_count = filter_count // 2 if mode == "correlated" and shared else 0
+    for filter_id in range(filter_count):
+        if mode == "correlated" and shared:
+            relation = "avoid" if filter_id >= group_count else "match"
+            group = filter_id % group_count
+            preferred = np.flatnonzero(cluster_ids % group_count == group)
+            fallback = np.flatnonzero(cluster_ids % group_count != group)
+            if relation == "avoid":
+                preferred, fallback = fallback, preferred
+        elif mode == "correlated":
+            relation = relation_by_query[filter_id]
+            own_cluster = int(query_clusters[filter_id])
+            preferred = np.flatnonzero(cluster_ids == own_cluster)
+            fallback = np.flatnonzero(cluster_ids != own_cluster)
+            if relation == "avoid":
+                preferred, fallback = fallback, preferred
+        else:
+            relation = "random"
+            preferred = np.empty(0, dtype=np.int64)
+            fallback = np.arange(len(vectors))
+
         for selectivity_id, selectivity in enumerate(requested):
-            column = query_id * len(requested) + selectivity_id
-            field = f"filter_q{query_id:04d}_s{selectivity_id:02d}"
-            attribute_names.append(field)
             allowed_count = int(round(selectivity * len(vectors)))
             if mode == "independent":
                 selected = rng.choice(len(vectors), allowed_count, replace=False)
             else:
-                same_cluster = np.flatnonzero(cluster_ids == own_cluster)
-                other_clusters = np.flatnonzero(cluster_ids != own_cluster)
-                preferred = same_cluster if relation == "match" else other_clusters
-                fallback = other_clusters if relation == "match" else same_cluster
                 take_preferred = min(allowed_count, len(preferred))
                 selected_parts = []
                 if take_preferred:
@@ -128,13 +165,19 @@ def generate_workload(
                 if remaining:
                     selected_parts.append(rng.choice(fallback, remaining, replace=False))
                 selected = np.concatenate(selected_parts) if selected_parts else np.empty(0, dtype=int)
-            attributes[selected, column] = 1
             selected = np.sort(selected.astype(np.int64, copy=False))
+            attributes[selected, filter_id * len(requested) + selectivity_id] = 1
             allowed_ids.append(selected)
+
+    for query_id, (query, filter_id) in enumerate(zip(queries, query_filter_ids)):
+        relation = relation_by_query[query_id]
+        own_cluster = int(query_clusters[query_id])
+        for selectivity_id, selectivity in enumerate(requested):
             predicates.append({
                 "query_id": query_id,
+                "filter_id": int(filter_id),
                 "selectivity": selectivity,
-                "attribute_name": field,
+                "attribute_name": attribute_names[int(filter_id)],
                 "operator": "eq",
                 "value": 1,
                 "cluster_relation": relation,
@@ -143,8 +186,10 @@ def generate_workload(
 
     truth = np.empty((len(queries), len(requested), k), dtype=np.int64)
     for selectivity_id in range(len(requested)):
-        query_ids = [allowed_ids[qid * len(requested) + selectivity_id]
-                     for qid in range(len(queries))]
+        query_ids = [
+            allowed_ids[int(filter_id) * len(requested) + selectivity_id]
+            for filter_id in query_filter_ids
+        ]
         truth[:, selectivity_id, :] = _exact_filtered_truth(vectors, queries, query_ids, k)
     achieved = np.asarray([len(ids) / len(vectors) for ids in allowed_ids], dtype=np.float64)
     return {
@@ -152,16 +197,19 @@ def generate_workload(
         "queries": queries,
         "attributes": attributes,
         "attribute_names": np.asarray(attribute_names),
+        "query_filter_ids": query_filter_ids,
         "predicates_json": np.asarray(json.dumps(predicates)),
         "filtered_ground_truth": truth,
         "requested_selectivities": np.asarray(requested, dtype=np.float64),
-        "achieved_selectivities": achieved.reshape(len(queries), len(requested)),
+        "achieved_selectivities": achieved.reshape(filter_count, len(requested)),
         "cluster_ids": cluster_ids,
         "query_clusters": query_clusters,
         "cluster_relations": np.asarray(relation_by_query),
         "mode": np.asarray(mode),
         "seed": np.asarray(seed, dtype=np.int64),
         "k": np.asarray(k, dtype=np.int64),
+        "shared_filter_count": np.asarray(filter_count if shared else 0, dtype=np.int64),
+        "vector_count": np.asarray(len(vectors), dtype=np.int64),
     }
 
 
@@ -174,6 +222,7 @@ def main():
     parser.add_argument("--mode", choices=("independent", "correlated"), default="independent")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--clusters", type=int, default=16)
+    parser.add_argument("--shared-filters", type=int)
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -187,7 +236,8 @@ def main():
         vectors = vectors[:args.limit_train]
     queries = queries[:args.limit_queries]
     workload = generate_workload(
-        vectors, queries, args.selectivities, args.mode, args.seed, args.k, args.clusters
+        vectors, queries, args.selectivities, args.mode, args.seed, args.k, args.clusters,
+        args.shared_filters,
     )
     workload["dataset"] = np.asarray(args.dataset)
     workload["metric"] = np.asarray(metric)
