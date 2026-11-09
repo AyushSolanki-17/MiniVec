@@ -53,3 +53,23 @@ def test_independent_filter_workload_is_reproducible():
     second = generate_workload(vectors, queries, [0.5], mode="independent", seed=7, k=10)
     assert np.array_equal(first["attributes"], second["attributes"])
     assert np.array_equal(first["filtered_ground_truth"], second["filtered_ground_truth"])
+
+
+def test_shared_filters_are_reused_and_keep_exact_truth():
+    vectors, queries = clustered_data()
+    requested = [0.2, 0.05]
+    workload = generate_workload(
+        vectors, queries, requested, mode="correlated", seed=23, k=10, clusters=8,
+        shared_filter_count=8,
+    )
+
+    assert workload["attributes"].shape == (len(vectors), 8 * len(requested))
+    assert workload["achieved_selectivities"].shape == (8, len(requested))
+    assert len(set(workload["query_filter_ids"])) < len(queries)
+    for query_id, filter_id in enumerate(workload["query_filter_ids"]):
+        for selectivity_id, selectivity in enumerate(requested):
+            column = int(filter_id) * len(requested) + selectivity_id
+            allowed = workload["attributes"][:, column].astype(bool)
+            truth = workload["filtered_ground_truth"][query_id, selectivity_id]
+            assert np.all(allowed[truth])
+            assert int(np.sum(allowed)) == round(selectivity * len(vectors))
